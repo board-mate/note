@@ -220,3 +220,22 @@ button,input,textarea{font:inherit}button{cursor:pointer}
   .post-detail-body,.todo-detail-note{padding-top:12px}
   .comment-item{padding-right:48px}
 }
+
+/* ===== v9 board polls ===== */
+.poll-editor-card{margin:16px 0;padding:14px;border:1px solid var(--line);border-radius:16px;background:#f8fafc}
+.poll-toggle{margin:0;font-weight:800;color:#344054}.poll-toggle span{font-size:14px}
+.poll-option-editor{display:flex;flex-direction:column;gap:8px}
+.poll-option-edit-row{display:grid;grid-template-columns:minmax(0,1fr) 38px;gap:8px;align-items:center}
+.poll-option-edit-row input{width:100%;border:1px solid #d0d5dd;border-radius:12px;padding:10px 12px;background:#fff;outline:0}
+.poll-option-edit-row input:focus{border-color:#667085;box-shadow:0 0 0 3px rgba(102,112,133,.12)}
+.poll-editor-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-2px 0 12px}
+.poll-lock-note{margin:8px 0 12px;padding:10px 12px;border-radius:12px;background:#fff7ed;color:#9a3412;font-size:12px;line-height:1.5}
+.post-poll-detail{margin:18px 0;padding:18px;border:1px solid #d0d5dd;border-radius:18px;background:#f8fafc}
+.poll-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:14px}.poll-head h3{margin:6px 0 0;font-size:17px;overflow-wrap:anywhere}
+.poll-badge{display:inline-flex;padding:3px 8px;border-radius:999px;background:#e0e7ff;color:#3730a3;font-size:11px;font-weight:800}
+.poll-options{display:flex;flex-direction:column;gap:9px}
+.poll-option{display:block;padding:11px 12px;border:1px solid #d0d5dd;border-radius:13px;background:#fff;cursor:pointer;overflow:hidden}.poll-option.selected{border-color:#98a2b3;background:#f9fafb}
+.poll-option-row{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:14px}.poll-option-row>span{min-width:0;overflow-wrap:anywhere}.poll-option-row strong{white-space:nowrap;font-size:12px;color:#475467}
+.poll-option input{vertical-align:middle;margin-right:4px}.poll-bar{height:6px;margin-top:9px;border-radius:999px;background:#eaecf0;overflow:hidden}.poll-bar span{display:block;height:100%;border-radius:inherit;background:#667085;transition:width .2s ease}
+.poll-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:5px;flex-wrap:wrap}
+@media(max-width:640px){.post-poll-detail{padding:14px}.poll-head{flex-direction:column}.poll-option-row{align-items:flex-start}.poll-option-row strong{margin-left:auto}.poll-editor-card{padding:12px}}

@@ -393,6 +393,16 @@
       <label class="field"><span>제목 *</span><input id="postTitleInput" required maxlength="160" placeholder="게시글 제목"></label>
       <label class="field"><span>내용 *</span><textarea id="postBodyInput" rows="11" required placeholder="자유롭게 내용을 작성하세요. URL을 붙여넣으면 게시글에서 클릭 가능한 링크로 표시됩니다."></textarea></label>
       <div class="editor-tools"><button type="button" id="insertPostLinkBtn" class="secondary-btn compact-btn">🔗 하이퍼링크 삽입</button><span class="muted">URL 자동 링크 · [문구](https://주소) 형식 지원</span></div>
+      <section class="poll-editor-card">
+        <label class="toggle-row poll-toggle"><input id="postPollEnabled" type="checkbox"><span>투표 추가</span></label>
+        <div id="postPollFields" class="hidden">
+          <label class="field"><span>투표 질문 *</span><input id="postPollQuestion" maxlength="200" placeholder="예: 다음 모임 날짜는 언제가 좋을까요?"></label>
+          <div class="field"><span>선택 항목 *</span><div id="postPollOptions" class="poll-option-editor"></div></div>
+          <div class="poll-editor-actions"><button type="button" id="addPollOptionBtn" class="secondary-btn compact-btn">＋ 항목 추가</button><span class="muted">2~10개 · 단일 선택</span></div>
+          <p id="postPollLockNote" class="poll-lock-note hidden">이미 투표가 시작되어 질문과 항목은 변경할 수 없습니다. 투표 마감 여부만 변경할 수 있습니다.</p>
+          <label class="toggle-row"><input id="postPollClosed" type="checkbox"><span>투표 마감</span></label>
+        </div>
+      </section>
       <div id="postEditedText" class="editor-meta"></div>
       <div class="modal-actions">
         <button type="button" id="deletePostBtn" class="danger-text hidden">삭제</button>
@@ -412,6 +422,7 @@
     <input id="postDetailId" type="hidden">
     <div id="postDetailMeta" class="post-detail-meta"></div>
     <div id="postDetailBody" class="post-detail-body"></div>
+    <section id="postPollDetail" class="post-poll-detail hidden"></section>
     <div class="post-detail-actions">
       <button type="button" id="editPostFromDetailBtn" class="secondary-btn">글 수정</button>
     </div>

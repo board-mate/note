@@ -4,10 +4,10 @@ const cfg=window.APP_CONFIG||{};
 const configured=cfg.supabaseUrl&&!cfg.supabaseUrl.includes("YOUR_PROJECT")&&cfg.supabaseAnonKey&&!cfg.supabaseAnonKey.includes("YOUR_");
 const sb=configured?window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}}):null;
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const state={tab:"home",meetings:[],notices:[],schedules:[],posts:[],comments:[],todos:[],todoComments:[],project:"전체",trash:false,q:"",postQ:"",todoFilter:"open",
+const state={tab:"home",meetings:[],notices:[],schedules:[],posts:[],comments:[],polls:[],pollOptions:[],pollVotes:[],todos:[],todoComments:[],project:"전체",trash:false,q:"",postQ:"",todoFilter:"open",
   calendarMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),
   selectedDate:null};
-const KEYS={meetings:"group-meetings-v2",notices:"group-notices-v2",schedules:"group-schedules-v2",posts:"group-posts-v1",comments:"group-comments-v1",todos:"group-todos-v1",todoComments:"group-todo-comments-v1",author:"group-author-v2"};
+const KEYS={meetings:"group-meetings-v2",notices:"group-notices-v2",schedules:"group-schedules-v2",posts:"group-posts-v1",comments:"group-comments-v1",polls:"group-post-polls-v1",pollOptions:"group-post-poll-options-v1",pollVotes:"group-post-poll-votes-v1",voter:"group-voter-id-v1",todos:"group-todos-v1",todoComments:"group-todo-comments-v1",author:"group-author-v2"};
 
 function now(){return new Date().toISOString()}
 function today(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}
@@ -35,6 +35,9 @@ function seed(){
  if(!localStorage.getItem(KEYS.schedules)){const d=new Date();d.setDate(d.getDate()+7);d.setMinutes(d.getMinutes()-d.getTimezoneOffset());localSet(KEYS.schedules,[{id:crypto.randomUUID(),title:"다음 정기모임",event_date:d.toISOString().slice(0,10),event_time:"19:00",location:"미정",note:"세부 장소는 추후 공지",author:"샘플",created_at:now(),updated_at:now()}])}
  if(!localStorage.getItem(KEYS.posts)) localSet(KEYS.posts,[{id:crypto.randomUUID(),title:"일반 게시판이 열렸습니다",body:"자유로운 이야기와 정보를 공유해보세요.\n\n링크도 바로 붙여넣을 수 있습니다: https://board-mate.github.io/arena/",author:"샘플",created_at:now(),updated_at:now()}]);
  if(!localStorage.getItem(KEYS.comments)) localSet(KEYS.comments,[]);
+ if(!localStorage.getItem(KEYS.polls)) localSet(KEYS.polls,[]);
+ if(!localStorage.getItem(KEYS.pollOptions)) localSet(KEYS.pollOptions,[]);
+ if(!localStorage.getItem(KEYS.pollVotes)) localSet(KEYS.pollVotes,[]);
  if(!localStorage.getItem(KEYS.todos)) localSet(KEYS.todos,[]);
  if(!localStorage.getItem(KEYS.todoComments)) localSet(KEYS.todoComments,[]);
 }
@@ -47,19 +50,22 @@ function authorPrompt(){
 async function loadAll(){
  try{
   if(configured){
-   const [m,n,s,p,c,t,tc]=await Promise.all([
+   const [m,n,s,p,c,pl,po,pv,t,tc]=await Promise.all([
     sb.from("meetings").select("*").order("meeting_date",{ascending:false}).order("created_at",{ascending:false}),
     sb.from("announcements").select("*").order("pinned",{ascending:false}).order("created_at",{ascending:false}),
     sb.from("schedules").select("*").order("event_date",{ascending:true}).order("event_time",{ascending:true}),
     sb.from("posts").select("*").order("created_at",{ascending:false}),
     sb.from("post_comments").select("*").order("created_at",{ascending:true}),
+    sb.from("post_polls").select("*").order("created_at",{ascending:true}),
+    sb.from("post_poll_options").select("*").order("sort_order",{ascending:true}),
+    sb.from("post_poll_votes").select("*").order("created_at",{ascending:true}),
     sb.from("todos").select("*").order("done",{ascending:true}).order("due",{ascending:true,nullsFirst:false}).order("created_at",{ascending:false}),
     sb.from("todo_comments").select("*").order("created_at",{ascending:true})
    ]);
-   if(m.error)throw m.error;if(n.error)throw n.error;if(s.error)throw s.error;if(p.error)console.warn("게시판 테이블을 불러오지 못했습니다. schema.sql의 posts 마이그레이션을 확인하세요.",p.error);if(c.error)console.warn("게시판 댓글 테이블을 불러오지 못했습니다. migration_v7_comments.sql을 실행하세요.",c.error);if(t.error)console.warn("독립 할 일 테이블을 불러오지 못했습니다. migration_v6_todos.sql을 실행하세요.",t.error);if(tc.error)console.warn("할 일 댓글 테이블을 불러오지 못했습니다. migration_v8_todo_comments.sql을 실행하세요.",tc.error);
-   state.meetings=m.data||[];state.notices=n.data||[];state.schedules=s.data||[];state.posts=p.error?[]:(p.data||[]);state.comments=c.error?[]:(c.data||[]);state.todos=t.error?[]:(t.data||[]);state.todoComments=tc.error?[]:(tc.data||[]);
+   if(m.error)throw m.error;if(n.error)throw n.error;if(s.error)throw s.error;if(p.error)console.warn("게시판 테이블을 불러오지 못했습니다. schema.sql의 posts 마이그레이션을 확인하세요.",p.error);if(c.error)console.warn("게시판 댓글 테이블을 불러오지 못했습니다. migration_v7_comments.sql을 실행하세요.",c.error);if(pl.error||po.error||pv.error)console.warn("게시판 투표 테이블을 불러오지 못했습니다. migration_v9_polls.sql을 실행하세요.",pl.error||po.error||pv.error);if(t.error)console.warn("독립 할 일 테이블을 불러오지 못했습니다. migration_v6_todos.sql을 실행하세요.",t.error);if(tc.error)console.warn("할 일 댓글 테이블을 불러오지 못했습니다. migration_v8_todo_comments.sql을 실행하세요.",tc.error);
+   state.meetings=m.data||[];state.notices=n.data||[];state.schedules=s.data||[];state.posts=p.error?[]:(p.data||[]);state.comments=c.error?[]:(c.data||[]);state.polls=pl.error?[]:(pl.data||[]);state.pollOptions=po.error?[]:(po.data||[]);state.pollVotes=pv.error?[]:(pv.data||[]);state.todos=t.error?[]:(t.data||[]);state.todoComments=tc.error?[]:(tc.data||[]);
   }else{
-   seed();state.meetings=localGet(KEYS.meetings);state.notices=localGet(KEYS.notices);state.schedules=localGet(KEYS.schedules);state.posts=localGet(KEYS.posts);state.comments=localGet(KEYS.comments);state.todos=localGet(KEYS.todos);state.todoComments=localGet(KEYS.todoComments)
+   seed();state.meetings=localGet(KEYS.meetings);state.notices=localGet(KEYS.notices);state.schedules=localGet(KEYS.schedules);state.posts=localGet(KEYS.posts);state.comments=localGet(KEYS.comments);state.polls=localGet(KEYS.polls);state.pollOptions=localGet(KEYS.pollOptions);state.pollVotes=localGet(KEYS.pollVotes);state.todos=localGet(KEYS.todos);state.todoComments=localGet(KEYS.todoComments)
   }
   renderAll();
  }catch(e){console.error(e);alert("데이터를 불러오지 못했습니다. Supabase 설정을 확인하세요.")}
@@ -270,36 +276,48 @@ function filteredPosts(){
  return state.posts.filter(p=>!q||[p.title,p.body,p.author].join(" ").toLowerCase().includes(q));
 }
 function postComments(postId){return state.comments.filter(c=>c.post_id===postId).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)))}
+
+function pollForPost(postId){return state.polls.find(x=>x.post_id===postId)}
+function pollOptions(pollId){return state.pollOptions.filter(x=>x.poll_id===pollId).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))}
+function pollVotes(pollId){return state.pollVotes.filter(x=>x.poll_id===pollId)}
+function voterId(){let v=localStorage.getItem(KEYS.voter);if(!v){v=crypto.randomUUID();localStorage.setItem(KEYS.voter,v)}return v}
+function postPollMeta(postId){const pl=pollForPost(postId);if(!pl)return"";return ` · 투표 ${pollVotes(pl.id).length}표${pl.closed?" · 마감":""}`}
+function renderPostPoll(postId){const wrap=$("#postPollDetail"),pl=pollForPost(postId);if(!pl){wrap.classList.add("hidden");wrap.innerHTML="";return}const opts=pollOptions(pl.id),votes=pollVotes(pl.id),mine=votes.find(v=>v.voter_id===voterId()),total=votes.length;wrap.classList.remove("hidden");wrap.innerHTML=`<div class="poll-head"><div><span class="poll-badge">투표</span><h3>${esc(pl.question)}</h3></div><span class="muted">${pl.closed?"마감됨":total+"명 참여"}</span></div><form id="postPollVoteForm" class="poll-options">${opts.map(o=>{const c=votes.filter(v=>v.option_id===o.id).length,p=total?Math.round(c/total*100):0;return `<label class="poll-option ${mine?.option_id===o.id?"selected":""}"><div class="poll-option-row"><span><input type="radio" name="pollOption" value="${o.id}" ${mine?.option_id===o.id?"checked":""} ${pl.closed?"disabled":""}> ${esc(o.option_text)}</span><strong>${c}표 · ${p}%</strong></div><div class="poll-bar"><span style="width:${p}%"></span></div></label>`}).join("")}<div class="poll-actions">${pl.closed?`<span class="muted">투표가 마감되었습니다.</span>`:`<button type="submit" class="primary-btn">${mine?"선택 변경":"투표하기"}</button>`}<span class="muted">총 ${total}표</span></div></form>`;$("#postPollVoteForm")?.addEventListener("submit",savePollVote)}
+async function savePollVote(e){e.preventDefault();const postId=$("#postDetailId").value,pl=pollForPost(postId);if(!pl||pl.closed)return;const fd=new FormData(e.currentTarget),optionId=fd.get("pollOption");if(!optionId)return alert("투표 항목을 선택해주세요.");const vid=voterId();if(configured){const r=await sb.from("post_poll_votes").upsert({poll_id:pl.id,option_id:optionId,voter_id:vid},{onConflict:"poll_id,voter_id"});if(r.error)return alert(r.error.message)}else{let rows=localGet(KEYS.pollVotes);const i=rows.findIndex(v=>v.poll_id===pl.id&&v.voter_id===vid);const row={id:i>=0?rows[i].id:crypto.randomUUID(),poll_id:pl.id,option_id:optionId,voter_id:vid,created_at:now()};if(i>=0)rows[i]=row;else rows.push(row);localSet(KEYS.pollVotes,rows)}await loadAll();renderPostPoll(postId)}
+function setPollEditor(p=null){const pl=p?pollForPost(p.id):null,opts=pl?pollOptions(pl.id):[];$("#postPollEnabled").checked=!!pl;$("#postPollFields").classList.toggle("hidden",!pl);$("#postPollQuestion").value=pl?.question||"";$("#postPollClosed").checked=!!pl?.closed;const box=$("#postPollOptions");box.innerHTML="";(opts.length?opts:[{option_text:""},{option_text:""}]).forEach(o=>addPollOption(o.option_text));const locked=!!(pl&&pollVotes(pl.id).length>0);$("#postPollLockNote").classList.toggle("hidden",!locked);$("#postPollEnabled").disabled=locked;$("#postPollQuestion").disabled=locked;$$("#postPollFields .poll-option-input,#postPollFields .poll-remove-option").forEach(x=>x.disabled=locked);$("#addPollOptionBtn").disabled=locked}
+function addPollOption(value="",i=null){const box=$("#postPollOptions");if(box.children.length>=10)return;const row=document.createElement("div");row.className="poll-option-edit-row";row.innerHTML=`<input class="poll-option-input" maxlength="120" placeholder="선택 항목" value="${esc(value)}"><button type="button" class="icon-btn poll-remove-option" aria-label="항목 삭제">✕</button>`;row.querySelector(".poll-remove-option").onclick=()=>{if(box.children.length<=2)return alert("투표 항목은 최소 2개가 필요합니다.");row.remove()};box.appendChild(row)}
+async function syncPostPoll(postId){const enabled=$("#postPollEnabled").checked,existing=pollForPost(postId);if(!enabled){if(existing&&!pollVotes(existing.id).length){if(configured)await sb.from("post_polls").delete().eq("id",existing.id);else{localSet(KEYS.polls,localGet(KEYS.polls).filter(x=>x.id!==existing.id));localSet(KEYS.pollOptions,localGet(KEYS.pollOptions).filter(x=>x.poll_id!==existing.id))}}return}const question=$("#postPollQuestion").value.trim(),options=$$("#postPollOptions .poll-option-input").map(x=>x.value.trim()).filter(Boolean),closed=$("#postPollClosed").checked;if(!question)throw new Error("투표 질문을 입력해주세요.");if(options.length<2)throw new Error("투표 항목을 2개 이상 입력해주세요.");if(existing){if(configured){let r=await sb.from("post_polls").update({question,closed}).eq("id",existing.id);if(r.error)throw r.error;if(!pollVotes(existing.id).length){r=await sb.from("post_poll_options").delete().eq("poll_id",existing.id);if(r.error)throw r.error;r=await sb.from("post_poll_options").insert(options.map((x,i)=>({poll_id:existing.id,option_text:x,sort_order:i})));if(r.error)throw r.error}}else{let polls=localGet(KEYS.polls),i=polls.findIndex(x=>x.id===existing.id);polls[i]={...polls[i],question,closed};localSet(KEYS.polls,polls);if(!pollVotes(existing.id).length){let os=localGet(KEYS.pollOptions).filter(x=>x.poll_id!==existing.id);options.forEach((x,j)=>os.push({id:crypto.randomUUID(),poll_id:existing.id,option_text:x,sort_order:j}));localSet(KEYS.pollOptions,os)}}}else{const pid=crypto.randomUUID();if(configured){const r=await sb.from("post_polls").insert({post_id:postId,question,closed}).select().single();if(r.error)throw r.error;const rr=await sb.from("post_poll_options").insert(options.map((x,i)=>({poll_id:r.data.id,option_text:x,sort_order:i})));if(rr.error)throw rr.error}else{let ps=localGet(KEYS.polls);ps.push({id:pid,post_id:postId,question,closed,created_at:now()});localSet(KEYS.polls,ps);let os=localGet(KEYS.pollOptions);options.forEach((x,i)=>os.push({id:crypto.randomUUID(),poll_id:pid,option_text:x,sort_order:i}));localSet(KEYS.pollOptions,os)}}}
+
 function renderPosts(){
  const rows=filteredPosts();
  $("#postCountMeta").textContent=`${rows.length}건`;
- $("#postList").innerHTML=rows.length?rows.map(p=>{const cc=postComments(p.id).length;return`<article class="stack-card board-card" data-post-id="${p.id}"><div class="compact-icon">▤</div><div class="stack-card-main"><h3>${esc(p.title)}</h3><p class="board-preview">${esc(p.body||"")}</p><div class="stack-meta">${esc(p.author||"익명")} · ${fmtDT(p.updated_at||p.created_at)} · 댓글 ${cc}</div></div></article>`}).join(""):`<div class="empty"><div class="empty-icon">▤</div><h3>게시글이 없습니다</h3><p>첫 게시글을 작성해보세요.</p></div>`;
+ $("#postList").innerHTML=rows.length?rows.map(p=>{const cc=postComments(p.id).length;return`<article class="stack-card board-card" data-post-id="${p.id}"><div class="compact-icon">▤</div><div class="stack-card-main"><h3>${esc(p.title)}</h3><p class="board-preview">${esc(p.body||"")}</p><div class="stack-meta">${esc(p.author||"익명")} · ${fmtDT(p.updated_at||p.created_at)} · 댓글 ${cc}${postPollMeta(p.id)}</div></div></article>`}).join(""):`<div class="empty"><div class="empty-icon">▤</div><h3>게시글이 없습니다</h3><p>첫 게시글을 작성해보세요.</p></div>`;
 }
 function openPost(p=null){
  $("#postId").value=p?.id||"";$("#postTitleInput").value=p?.title||"";$("#postBodyInput").value=p?.body||"";
  $("#postDialogTitle").textContent=p?"게시글 수정":"새 게시글";$("#deletePostBtn").classList.toggle("hidden",!p);
- $("#postEditedText").textContent=p?`마지막 수정 ${fmtDT(p.updated_at||p.created_at)}${p.author?" · "+p.author:""}`:"";$("#postDialog").showModal();
+ $("#postEditedText").textContent=p?`마지막 수정 ${fmtDT(p.updated_at||p.created_at)}${p.author?" · "+p.author:""}`:"";setPollEditor(p);$("#postDialog").showModal();
 }
 function showPost(p){
  if(!p)return;
  $("#postDetailId").value=p.id;$("#postDetailTitle").textContent=p.title;$("#postDetailMeta").textContent=`${p.author||"익명"} · ${fmtDT(p.updated_at||p.created_at)}`;
- $("#postDetailBody").innerHTML=linkify(p.body||"");renderPostComments(p.id);$("#postDetailDialog").showModal();
+ $("#postDetailBody").innerHTML=linkify(p.body||"");renderPostPoll(p.id);renderPostComments(p.id);$("#postDetailDialog").showModal();
 }
 function renderPostComments(postId){
  const rows=postComments(postId);$("#postCommentCount").textContent=`댓글 ${rows.length}`;
  $("#postCommentList").innerHTML=rows.length?rows.map(c=>`<div class="comment-item" data-comment-id="${c.id}"><div class="comment-head"><strong>${esc(c.author||"익명")}</strong><span>${fmtDT(c.created_at)}</span></div><div class="comment-body">${linkify(c.body||"")}</div><button type="button" class="comment-delete" data-delete-comment="${c.id}" aria-label="댓글 삭제">삭제</button></div>`).join(""):`<p class="muted comment-empty">아직 댓글이 없습니다.</p>`;
 }
 async function savePost(e){
- e.preventDefault();if(!$("#postForm").reportValidity())return;const author=await authorPrompt(),id=$("#postId").value,p={title:$("#postTitleInput").value.trim(),body:$("#postBodyInput").value.trim(),author};
+ e.preventDefault();if(!$("#postForm").reportValidity())return;if($("#postPollEnabled").checked){const q=$("#postPollQuestion").value.trim(),os=$$("#postPollOptions .poll-option-input").map(x=>x.value.trim()).filter(Boolean);if(!q)return alert("투표 질문을 입력해주세요.");if(os.length<2)return alert("투표 항목을 2개 이상 입력해주세요.")}const author=await authorPrompt(),id=$("#postId").value,p={title:$("#postTitleInput").value.trim(),body:$("#postBodyInput").value.trim(),author};
  let savedId=id;
  if(configured){const r=id?await sb.from("posts").update(p).eq("id",id).select().single():await sb.from("posts").insert(p).select().single();if(r.error)return alert(r.error.message);savedId=r.data?.id||id}
  else{const rows=localGet(KEYS.posts);if(id){const i=rows.findIndex(x=>x.id===id);if(i>=0)rows[i]={...rows[i],...p,updated_at:now()}}else{savedId=crypto.randomUUID();rows.unshift({id:savedId,...p,created_at:now(),updated_at:now()})}localSet(KEYS.posts,rows)}
- $("#postDialog").close();await loadAll();const saved=state.posts.find(x=>x.id===savedId);if(saved)showPost(saved);
+ try{await syncPostPoll(savedId)}catch(err){return alert(err.message||String(err))}$("#postDialog").close();await loadAll();const saved=state.posts.find(x=>x.id===savedId);if(saved)showPost(saved);
 }
 async function deletePost(){
- const id=$("#postId").value;if(!id||!confirm("게시글을 삭제할까요? 댓글도 함께 삭제됩니다."))return;
+ const id=$("#postId").value;if(!id||!confirm("게시글을 삭제할까요? 댓글과 투표도 함께 삭제됩니다."))return;
  if(configured){const r=await sb.from("posts").delete().eq("id",id);if(r.error)return alert(r.error.message)}
- else{localSet(KEYS.posts,localGet(KEYS.posts).filter(x=>x.id!==id));localSet(KEYS.comments,localGet(KEYS.comments).filter(x=>x.post_id!==id))}
+ else{const pl=localGet(KEYS.polls).find(x=>x.post_id===id);localSet(KEYS.posts,localGet(KEYS.posts).filter(x=>x.id!==id));localSet(KEYS.comments,localGet(KEYS.comments).filter(x=>x.post_id!==id));if(pl){localSet(KEYS.polls,localGet(KEYS.polls).filter(x=>x.id!==pl.id));localSet(KEYS.pollOptions,localGet(KEYS.pollOptions).filter(x=>x.poll_id!==pl.id));localSet(KEYS.pollVotes,localGet(KEYS.pollVotes).filter(x=>x.poll_id!==pl.id))}}
  $("#postDialog").close();$("#postDetailDialog")?.close();await loadAll();
 }
 async function saveComment(e){
@@ -437,6 +455,7 @@ async function showHistory(){
 
 $("#meetingForm").addEventListener("submit",saveMeeting);$("#noticeForm").addEventListener("submit",saveNotice);$("#scheduleForm").addEventListener("submit",saveSchedule);$("#postForm").addEventListener("submit",savePost);$("#postCommentForm").addEventListener("submit",saveComment);$("#todoForm").addEventListener("submit",saveTodo);$("#todoCommentForm").addEventListener("submit",saveTodoComment);
 $("#addActionBtn").onclick=()=>addAction();$("#deleteMeetingBtn").onclick=softDeleteMeeting;$("#restoreMeetingBtn").onclick=restoreMeeting;$("#historyBtn").onclick=showHistory;
+$("#postPollEnabled").onchange=e=>$("#postPollFields").classList.toggle("hidden",!e.target.checked);$("#addPollOptionBtn").onclick=()=>addPollOption();
 $("#deleteNoticeBtn").onclick=deleteNotice;$("#deleteScheduleBtn").onclick=deleteSchedule;$("#deletePostBtn").onclick=deletePost;$("#deleteTodoBtn").onclick=deleteTodo;$("#refreshBtn").onclick=loadAll;$("#insertPostLinkBtn").onclick=insertPostLink;
 ["newMeetingTopBtn","emptyNewMeetingBtn","newMeetingHomeBtn"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openMeeting()));
 ["addNoticeBtn","newNoticeTopBtn"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openNotice()));
