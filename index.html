@@ -451,6 +451,32 @@
     </form>
   </dialog>
 
+
+  <dialog id="todoDetailDialog" class="modal todo-detail-modal">
+    <div class="modal-head detail-head">
+      <div class="detail-head-main"><div class="eyebrow">TO-DO</div><h2 id="todoDetailTitle">할 일</h2></div>
+      <button type="button" class="icon-btn close-btn" data-close="todoDetailDialog">✕</button>
+    </div>
+    <input id="todoDetailKey" type="hidden">
+    <input id="todoDetailSource" type="hidden">
+    <input id="todoDetailId" type="hidden">
+    <input id="todoDetailMeetingId" type="hidden">
+    <input id="todoDetailActionIndex" type="hidden">
+    <div id="todoDetailMeta" class="post-detail-meta todo-detail-meta"></div>
+    <div id="todoDetailNote" class="post-detail-body todo-detail-note"></div>
+    <div class="post-detail-actions">
+      <button type="button" id="editTodoFromDetailBtn" class="secondary-btn">할 일 수정</button>
+    </div>
+    <section class="comment-section">
+      <div class="comment-section-head"><h3>댓글</h3><span id="todoCommentCount" class="muted">댓글 0</span></div>
+      <div id="todoCommentList" class="comment-list"></div>
+      <form id="todoCommentForm" class="comment-form">
+        <label class="field"><span>댓글 작성</span><textarea id="todoCommentInput" rows="3" required maxlength="2000" placeholder="댓글을 입력하세요. URL은 자동으로 링크가 됩니다."></textarea></label>
+        <div class="comment-form-actions"><button type="submit" class="primary-btn">댓글 등록</button></div>
+      </form>
+    </section>
+  </dialog>
+
   <dialog id="historyDialog" class="modal small-modal">
     <div class="modal-head">
       <div><div class="eyebrow">HISTORY</div><h2>수정 이력</h2></div>

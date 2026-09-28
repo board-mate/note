@@ -166,7 +166,7 @@ button,input,textarea{font:inherit}button{cursor:pointer}
   .calendar-shell{box-shadow:none}
 }
 
-.board-card .board-preview{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.nav-link{cursor:pointer}
+.board-card .board-preview{display:block;white-space:pre-wrap;overflow:visible;overflow-wrap:anywhere;word-break:break-word}.nav-link{cursor:pointer}
 @media(max-width:640px){.bottom-nav{overflow-x:auto;grid-template-columns:repeat(7,minmax(48px,1fr))}.nav-item small{font-size:9px}.holiday-name{font-size:7px;margin-bottom:2px}.calendar-day.holiday .cal-events{margin-top:0}}
 
 /* Standalone to-do */
@@ -201,4 +201,22 @@ button,input,textarea{font:inherit}button{cursor:pointer}
   .post-detail-modal{width:100%}
   .editor-tools{align-items:flex-start}
   .editor-tools .muted{font-size:11px}
+}
+
+
+/* ===== v8 task comments + unclipped board detail ===== */
+.board-card,.board-card .stack-card-main,.post-detail-modal,.todo-detail-modal,.detail-head-main,.todo-main{min-width:0}
+.board-card h3,.post-detail-modal h2,.todo-detail-modal h2,.todo-title{overflow-wrap:anywhere;word-break:break-word}
+.post-detail-modal,.todo-detail-modal{width:min(800px,calc(100% - 28px));max-height:min(94dvh,980px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:22px}
+.post-detail-body,.todo-detail-note{white-space:normal;overflow:visible;max-height:none;word-break:break-word}
+.post-detail-body a,.todo-detail-note a,.comment-body a{overflow-wrap:anywhere;word-break:break-all}
+.detail-head{align-items:flex-start}.detail-head-main{flex:1}.detail-head .close-btn{flex:0 0 auto}
+.todo-row{cursor:pointer}.todo-main{min-width:0}.todo-sub{overflow-wrap:anywhere;word-break:break-word}
+.todo-detail-meta{line-height:1.55}.todo-detail-note{min-height:56px}
+.comment-list{min-width:0}.comment-item{min-width:0;overflow:visible}.comment-body{white-space:pre-wrap;word-break:break-word}
+.comment-form textarea{min-height:78px}
+@media(max-width:640px){
+  .post-detail-modal,.todo-detail-modal{width:100%;max-height:96dvh;overflow-y:auto;padding:18px 14px calc(18px + env(safe-area-inset-bottom))!important}
+  .post-detail-body,.todo-detail-note{padding-top:12px}
+  .comment-item{padding-right:48px}
 }

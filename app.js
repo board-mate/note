@@ -4,10 +4,10 @@ const cfg=window.APP_CONFIG||{};
 const configured=cfg.supabaseUrl&&!cfg.supabaseUrl.includes("YOUR_PROJECT")&&cfg.supabaseAnonKey&&!cfg.supabaseAnonKey.includes("YOUR_");
 const sb=configured?window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}}):null;
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const state={tab:"home",meetings:[],notices:[],schedules:[],posts:[],comments:[],todos:[],project:"전체",trash:false,q:"",postQ:"",todoFilter:"open",
+const state={tab:"home",meetings:[],notices:[],schedules:[],posts:[],comments:[],todos:[],todoComments:[],project:"전체",trash:false,q:"",postQ:"",todoFilter:"open",
   calendarMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),
   selectedDate:null};
-const KEYS={meetings:"group-meetings-v2",notices:"group-notices-v2",schedules:"group-schedules-v2",posts:"group-posts-v1",comments:"group-comments-v1",todos:"group-todos-v1",author:"group-author-v2"};
+const KEYS={meetings:"group-meetings-v2",notices:"group-notices-v2",schedules:"group-schedules-v2",posts:"group-posts-v1",comments:"group-comments-v1",todos:"group-todos-v1",todoComments:"group-todo-comments-v1",author:"group-author-v2"};
 
 function now(){return new Date().toISOString()}
 function today(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}
@@ -36,6 +36,7 @@ function seed(){
  if(!localStorage.getItem(KEYS.posts)) localSet(KEYS.posts,[{id:crypto.randomUUID(),title:"일반 게시판이 열렸습니다",body:"자유로운 이야기와 정보를 공유해보세요.\n\n링크도 바로 붙여넣을 수 있습니다: https://board-mate.github.io/arena/",author:"샘플",created_at:now(),updated_at:now()}]);
  if(!localStorage.getItem(KEYS.comments)) localSet(KEYS.comments,[]);
  if(!localStorage.getItem(KEYS.todos)) localSet(KEYS.todos,[]);
+ if(!localStorage.getItem(KEYS.todoComments)) localSet(KEYS.todoComments,[]);
 }
 function banner(msg){const e=$("#modeBanner");e.textContent=msg;e.classList.remove("hidden")}
 function authorPrompt(){
@@ -46,18 +47,19 @@ function authorPrompt(){
 async function loadAll(){
  try{
   if(configured){
-   const [m,n,s,p,c,t]=await Promise.all([
+   const [m,n,s,p,c,t,tc]=await Promise.all([
     sb.from("meetings").select("*").order("meeting_date",{ascending:false}).order("created_at",{ascending:false}),
     sb.from("announcements").select("*").order("pinned",{ascending:false}).order("created_at",{ascending:false}),
     sb.from("schedules").select("*").order("event_date",{ascending:true}).order("event_time",{ascending:true}),
     sb.from("posts").select("*").order("created_at",{ascending:false}),
     sb.from("post_comments").select("*").order("created_at",{ascending:true}),
-    sb.from("todos").select("*").order("done",{ascending:true}).order("due",{ascending:true,nullsFirst:false}).order("created_at",{ascending:false})
+    sb.from("todos").select("*").order("done",{ascending:true}).order("due",{ascending:true,nullsFirst:false}).order("created_at",{ascending:false}),
+    sb.from("todo_comments").select("*").order("created_at",{ascending:true})
    ]);
-   if(m.error)throw m.error;if(n.error)throw n.error;if(s.error)throw s.error;if(p.error)console.warn("게시판 테이블을 불러오지 못했습니다. schema.sql의 posts 마이그레이션을 확인하세요.",p.error);if(c.error)console.warn("댓글 테이블을 불러오지 못했습니다. migration_v7_comments.sql을 실행하세요.",c.error);if(t.error)console.warn("독립 할 일 테이블을 불러오지 못했습니다. migration_v6_todos.sql을 실행하세요.",t.error);
-   state.meetings=m.data||[];state.notices=n.data||[];state.schedules=s.data||[];state.posts=p.error?[]:(p.data||[]);state.comments=c.error?[]:(c.data||[]);state.todos=t.error?[]:(t.data||[]);
+   if(m.error)throw m.error;if(n.error)throw n.error;if(s.error)throw s.error;if(p.error)console.warn("게시판 테이블을 불러오지 못했습니다. schema.sql의 posts 마이그레이션을 확인하세요.",p.error);if(c.error)console.warn("게시판 댓글 테이블을 불러오지 못했습니다. migration_v7_comments.sql을 실행하세요.",c.error);if(t.error)console.warn("독립 할 일 테이블을 불러오지 못했습니다. migration_v6_todos.sql을 실행하세요.",t.error);if(tc.error)console.warn("할 일 댓글 테이블을 불러오지 못했습니다. migration_v8_todo_comments.sql을 실행하세요.",tc.error);
+   state.meetings=m.data||[];state.notices=n.data||[];state.schedules=s.data||[];state.posts=p.error?[]:(p.data||[]);state.comments=c.error?[]:(c.data||[]);state.todos=t.error?[]:(t.data||[]);state.todoComments=tc.error?[]:(tc.data||[]);
   }else{
-   seed();state.meetings=localGet(KEYS.meetings);state.notices=localGet(KEYS.notices);state.schedules=localGet(KEYS.schedules);state.posts=localGet(KEYS.posts);state.comments=localGet(KEYS.comments);state.todos=localGet(KEYS.todos)
+   seed();state.meetings=localGet(KEYS.meetings);state.notices=localGet(KEYS.notices);state.schedules=localGet(KEYS.schedules);state.posts=localGet(KEYS.posts);state.comments=localGet(KEYS.comments);state.todos=localGet(KEYS.todos);state.todoComments=localGet(KEYS.todoComments)
   }
   renderAll();
  }catch(e){console.error(e);alert("데이터를 불러오지 못했습니다. Supabase 설정을 확인하세요.")}
@@ -91,7 +93,7 @@ function renderHome(){
 
  const todos=allTodos(false).slice(0,5);
  $("#todoCountBadge").textContent=allTodos(false).length;
- $("#todoHomeList").innerHTML=todos.length?todos.map(t=>`<div class="compact-item" ${t.source==="meeting"?`data-todo-meeting="${t.meetingId}"`:`data-todo-id="${t.id}"`}><div class="compact-icon">✓</div><div class="compact-main"><div class="compact-title">${esc(t.task)}</div><div class="compact-sub">${esc(t.owner||"담당 미정")}${t.due?" · "+fmtDate(t.due):""}${t.source==="standalone"?" · 독립 할 일":""}</div></div></div>`).join(""):`<p class="muted">남은 할 일이 없습니다.</p>`;
+ $("#todoHomeList").innerHTML=todos.length?todos.map(t=>{const cc=todoComments(t).length;return`<div class="compact-item" data-todo-key="${esc(todoKey(t))}" data-todo-source="${t.source}" ${t.source==="meeting"?`data-todo-meeting="${t.meetingId}" data-action-index="${t.actionIndex}"`:`data-todo-id="${t.id}"`}><div class="compact-icon">✓</div><div class="compact-main"><div class="compact-title">${esc(t.task)}</div><div class="compact-sub">${esc(t.owner||"담당 미정")}${t.due?" · "+fmtDate(t.due):""}${t.source==="standalone"?" · 독립 할 일":""}${cc?` · 댓글 ${cc}`:""}</div></div></div>`}).join(""):`<p class="muted">남은 할 일이 없습니다.</p>`;
 
  const ss=upcomingSchedules().slice(0,4);
  $("#scheduleHomeList").innerHTML=ss.length?ss.map(s=>`<div class="compact-item" data-schedule-id="${s.id}"><div class="compact-icon">◷</div><div class="compact-main"><div class="compact-title">${esc(s.title)}</div><div class="compact-sub">${fmtDate(s.event_date)}${s.event_time?" · "+s.event_time.slice(0,5):""}</div></div></div>`).join(""):`<p class="muted">예정 일정이 없습니다.</p>`;
@@ -327,9 +329,34 @@ function allTodos(includeDone=true){
  state.todos.forEach(t=>{if(includeDone||!t.done)arr.push({...t,source:"standalone",meetingTitle:"",project:t.project||""})});
  return arr.sort((a,b)=>(Number(a.done)-Number(b.done))||String(a.due||"9999").localeCompare(String(b.due||"9999"))||String(b.created_at||"").localeCompare(String(a.created_at||"")))
 }
+function todoKey(t){return t.source==="meeting"?`meeting:${t.meetingId}:action:${t.actionIndex}`:`todo:${t.id}`}
+function todoComments(tOrKey){const key=typeof tOrKey==="string"?tOrKey:todoKey(tOrKey);return state.todoComments.filter(c=>c.todo_key===key).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)))}
+function findTodoByKey(key){return allTodos(true).find(t=>todoKey(t)===key)}
 function renderTodos(){
  let rows=allTodos(true);if(state.todoFilter==="open")rows=rows.filter(x=>!x.done);
- $("#todoList").innerHTML=rows.length?rows.map(t=>`<div class="todo-row ${t.done?"todo-done":""}" data-todo-source="${t.source}" ${t.source==="meeting"?`data-todo-meeting="${t.meetingId}" data-action-index="${t.actionIndex}"`:`data-todo-id="${t.id}"`}><input class="todo-check" type="checkbox" ${t.done?"checked":""}><div><div class="todo-title">${esc(t.task)}</div><div class="todo-sub">${t.source==="meeting"?`${esc(t.meetingTitle)} · `:"독립 할 일 · "}${esc(t.owner||"담당 미정")}${t.project?` · ${esc(t.project)}`:""}</div></div><div class="todo-due">${t.due?fmtDate(t.due):""}</div></div>`).join(""):`<div class="empty"><h3>표시할 할 일이 없습니다</h3><p>회의록 없이도 새 할 일을 바로 등록할 수 있습니다.</p></div>`;
+ $("#todoList").innerHTML=rows.length?rows.map(t=>{const cc=todoComments(t).length;return`<div class="todo-row ${t.done?"todo-done":""}" data-todo-key="${esc(todoKey(t))}" data-todo-source="${t.source}" ${t.source==="meeting"?`data-todo-meeting="${t.meetingId}" data-action-index="${t.actionIndex}"`:`data-todo-id="${t.id}"`}><input class="todo-check" type="checkbox" ${t.done?"checked":""}><div class="todo-main"><div class="todo-title">${esc(t.task)}</div><div class="todo-sub">${t.source==="meeting"?`${esc(t.meetingTitle)} · `:"독립 할 일 · "}${esc(t.owner||"담당 미정")}${t.project?` · ${esc(t.project)}`:""}${cc?` · 댓글 ${cc}`:""}</div></div><div class="todo-due">${t.due?fmtDate(t.due):""}</div></div>`}).join(""):`<div class="empty"><h3>표시할 할 일이 없습니다</h3><p>회의록 없이도 새 할 일을 바로 등록할 수 있습니다.</p></div>`;
+}
+function showTodoDetail(t){
+ if(!t)return;const key=todoKey(t);
+ $("#todoDetailKey").value=key;$("#todoDetailSource").value=t.source;$("#todoDetailId").value=t.id||"";$("#todoDetailMeetingId").value=t.meetingId||"";$("#todoDetailActionIndex").value=t.actionIndex??"";
+ $("#todoDetailTitle").textContent=t.task||"할 일";
+ $("#todoDetailMeta").textContent=[t.source==="meeting"?`회의록 · ${t.meetingTitle}`:"독립 할 일",t.owner||"담당 미정",t.due?`기한 ${fmtDate(t.due)}`:"",t.project||"",t.done?"완료":"미완료"].filter(Boolean).join(" · ");
+ const note=t.source==="standalone"?(t.note||""):"";$("#todoDetailNote").innerHTML=note?linkify(note):`<span class="muted">${t.source==="meeting"?"세부 내용은 연결된 회의록에서 확인할 수 있습니다.":"등록된 메모가 없습니다."}</span>`;
+ $("#editTodoFromDetailBtn").textContent=t.source==="meeting"?"회의록 열기":"할 일 수정";renderTodoComments(key);$("#todoDetailDialog").showModal();
+}
+function renderTodoComments(key){
+ const rows=todoComments(key);$("#todoCommentCount").textContent=`댓글 ${rows.length}`;
+ $("#todoCommentList").innerHTML=rows.length?rows.map(c=>`<div class="comment-item" data-todo-comment-id="${c.id}"><div class="comment-head"><strong>${esc(c.author||"익명")}</strong><span>${fmtDT(c.created_at)}</span></div><div class="comment-body">${linkify(c.body||"")}</div><button type="button" class="comment-delete" data-delete-todo-comment="${c.id}" aria-label="댓글 삭제">삭제</button></div>`).join(""):`<p class="muted comment-empty">아직 댓글이 없습니다.</p>`;
+}
+async function saveTodoComment(e){
+ e.preventDefault();const key=$("#todoDetailKey").value,body=$("#todoCommentInput").value.trim();if(!key||!body)return;const author=await authorPrompt(),row={todo_key:key,body,author};
+ if(configured){const r=await sb.from("todo_comments").insert(row);if(r.error)return alert(r.error.message)}else{const rows=localGet(KEYS.todoComments);rows.push({id:crypto.randomUUID(),...row,created_at:now()});localSet(KEYS.todoComments,rows)}
+ $("#todoCommentInput").value="";await loadAll();renderTodoComments(key);
+}
+async function deleteTodoComment(id){
+ if(!id||!confirm("댓글을 삭제할까요?"))return;const key=$("#todoDetailKey").value;
+ if(configured){const r=await sb.from("todo_comments").delete().eq("id",id);if(r.error)return alert(r.error.message)}else localSet(KEYS.todoComments,localGet(KEYS.todoComments).filter(x=>x.id!==id));
+ await loadAll();renderTodoComments(key);
 }
 function openTodo(t=null){
  $("#todoId").value=t?.id||"";$("#todoTaskInput").value=t?.task||"";$("#todoOwnerInput").value=t?.owner||"";$("#todoDueInput").value=t?.due||"";$("#todoProjectInput").value=t?.project||"";$("#todoNoteInput").value=t?.note||"";$("#todoDoneInput").checked=!!t?.done;
@@ -343,8 +370,8 @@ async function saveTodo(e){
 }
 async function deleteTodo(){
  const id=$("#todoId").value;if(!id||!confirm("할 일을 삭제할까요?"))return;
- if(configured){const r=await sb.from("todos").delete().eq("id",id);if(r.error)return alert(r.error.message)}else localSet(KEYS.todos,localGet(KEYS.todos).filter(x=>x.id!==id));
- $("#todoDialog").close();await loadAll();
+ if(configured){const c=await sb.from("todo_comments").delete().eq("todo_key",`todo:${id}`);if(c.error)console.warn(c.error);const r=await sb.from("todos").delete().eq("id",id);if(r.error)return alert(r.error.message)}else{localSet(KEYS.todos,localGet(KEYS.todos).filter(x=>x.id!==id));localSet(KEYS.todoComments,localGet(KEYS.todoComments).filter(x=>x.todo_key!==`todo:${id}`))}
+ $("#todoDialog").close();$("#todoDetailDialog")?.close();await loadAll();
 }
 
 function addAction(a={}){
@@ -408,7 +435,7 @@ async function showHistory(){
  $("#historyList").innerHTML=rows.length?rows.map(x=>`<div class="history-item"><div><strong>${esc(x.editor||"익명")}</strong><small>${fmtDT(x.created_at)}</small></div></div>`).join(""):`<p class="muted">이전 버전이 없습니다.</p>`
 }
 
-$("#meetingForm").addEventListener("submit",saveMeeting);$("#noticeForm").addEventListener("submit",saveNotice);$("#scheduleForm").addEventListener("submit",saveSchedule);$("#postForm").addEventListener("submit",savePost);$("#postCommentForm").addEventListener("submit",saveComment);$("#todoForm").addEventListener("submit",saveTodo);
+$("#meetingForm").addEventListener("submit",saveMeeting);$("#noticeForm").addEventListener("submit",saveNotice);$("#scheduleForm").addEventListener("submit",saveSchedule);$("#postForm").addEventListener("submit",savePost);$("#postCommentForm").addEventListener("submit",saveComment);$("#todoForm").addEventListener("submit",saveTodo);$("#todoCommentForm").addEventListener("submit",saveTodoComment);
 $("#addActionBtn").onclick=()=>addAction();$("#deleteMeetingBtn").onclick=softDeleteMeeting;$("#restoreMeetingBtn").onclick=restoreMeeting;$("#historyBtn").onclick=showHistory;
 $("#deleteNoticeBtn").onclick=deleteNotice;$("#deleteScheduleBtn").onclick=deleteSchedule;$("#deletePostBtn").onclick=deletePost;$("#deleteTodoBtn").onclick=deleteTodo;$("#refreshBtn").onclick=loadAll;$("#insertPostLinkBtn").onclick=insertPostLink;
 ["newMeetingTopBtn","emptyNewMeetingBtn","newMeetingHomeBtn"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openMeeting()));
@@ -451,8 +478,10 @@ $("#scheduleHomeList").onclick=e=>{const c=e.target.closest("[data-schedule-id]"
 $("#postSearch").oninput=e=>{state.postQ=e.target.value;renderPosts()};$("#postList").onclick=e=>{const c=e.target.closest("[data-post-id]");if(c)showPost(state.posts.find(x=>x.id===c.dataset.postId))};
 $("#editPostFromDetailBtn").onclick=()=>{const p=state.posts.find(x=>x.id===$("#postDetailId").value);$("#postDetailDialog").close();if(p)openPost(p)};
 $("#postCommentList").onclick=e=>{const b=e.target.closest("[data-delete-comment]");if(b)deleteComment(b.dataset.deleteComment)};
-$("#todoHomeList").onclick=e=>{const m=e.target.closest("[data-todo-meeting]");if(m)return openMeeting(state.meetings.find(x=>x.id===m.dataset.todoMeeting));const t=e.target.closest("[data-todo-id]");if(t)return openTodo(state.todos.find(x=>x.id===t.dataset.todoId))};
-$("#todoList").onclick=e=>{const r=e.target.closest("[data-todo-source]");if(!r)return;if(r.dataset.todoSource==="meeting"){if(e.target.classList.contains("todo-check"))toggleTodo(r.dataset.todoMeeting,Number(r.dataset.actionIndex),e.target.checked);else openMeeting(state.meetings.find(x=>x.id===r.dataset.todoMeeting));}else{if(e.target.classList.contains("todo-check"))toggleStandaloneTodo(r.dataset.todoId,e.target.checked);else openTodo(state.todos.find(x=>x.id===r.dataset.todoId));}};
+$("#todoHomeList").onclick=e=>{const r=e.target.closest("[data-todo-key]");if(r)showTodoDetail(findTodoByKey(r.dataset.todoKey))};
+$("#todoList").onclick=e=>{const r=e.target.closest("[data-todo-source]");if(!r)return;if(e.target.classList.contains("todo-check")){if(r.dataset.todoSource==="meeting")toggleTodo(r.dataset.todoMeeting,Number(r.dataset.actionIndex),e.target.checked);else toggleStandaloneTodo(r.dataset.todoId,e.target.checked);return}showTodoDetail(findTodoByKey(r.dataset.todoKey));};
+$("#editTodoFromDetailBtn").onclick=()=>{const key=$("#todoDetailKey").value,t=findTodoByKey(key);$("#todoDetailDialog").close();if(!t)return;if(t.source==="meeting")openMeeting(state.meetings.find(x=>x.id===t.meetingId));else openTodo(state.todos.find(x=>x.id===t.id))};
+$("#todoCommentList").onclick=e=>{const b=e.target.closest("[data-delete-todo-comment]");if(b)deleteTodoComment(b.dataset.deleteTodoComment)};
 $$("[data-todo-filter]").forEach(b=>b.onclick=()=>{$$("[data-todo-filter]").forEach(x=>x.classList.remove("active"));b.classList.add("active");state.todoFilter=b.dataset.todoFilter;renderTodos()});
 $$("[data-close]").forEach(b=>b.onclick=()=>document.getElementById(b.dataset.close)?.close());
 $("#nameForm").onsubmit=e=>{e.preventDefault();const name=$("#authorInput").value.trim();if(!name)return;localStorage.setItem(KEYS.author,name);$("#nameDialog").close();if($("#nameForm")._resolve){$("#nameForm")._resolve(name);$("#nameForm")._resolve=null}};

@@ -84,6 +84,18 @@ create table if not exists public.todos (
   updated_at timestamptz not null default now()
 );
 
+
+create table if not exists public.todo_comments (
+  id uuid primary key default gen_random_uuid(),
+  todo_key text not null,
+  body text not null,
+  author text default '익명',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_todo_comments_todo_key_created_at
+on public.todo_comments(todo_key, created_at);
+
 create or replace function public.touch_updated_at()
 returns trigger language plpgsql as $$
 begin new.updated_at := now(); return new; end;
@@ -121,6 +133,7 @@ alter table public.schedules enable row level security;
 alter table public.posts enable row level security;
 alter table public.post_comments enable row level security;
 alter table public.todos enable row level security;
+alter table public.todo_comments enable row level security;
 
 drop policy if exists "public read meetings" on public.meetings;
 drop policy if exists "public insert meetings" on public.meetings;
@@ -131,6 +144,7 @@ drop policy if exists "public all schedules" on public.schedules;
 drop policy if exists "public all posts" on public.posts;
 drop policy if exists "public all post comments" on public.post_comments;
 drop policy if exists "public all todos" on public.todos;
+drop policy if exists "public all todo comments" on public.todo_comments;
 
 create policy "public read meetings" on public.meetings for select to anon using(true);
 create policy "public insert meetings" on public.meetings for insert to anon with check(true);
@@ -142,6 +156,7 @@ create policy "public all schedules" on public.schedules for all to anon using(t
 create policy "public all posts" on public.posts for all to anon using(true) with check(true);
 create policy "public all post comments" on public.post_comments for all to anon using(true) with check(true);
 create policy "public all todos" on public.todos for all to anon using(true) with check(true);
+create policy "public all todo comments" on public.todo_comments for all to anon using(true) with check(true);
 
 grant usage on schema public to anon;
 grant select,insert,update on public.meetings to anon;
@@ -151,6 +166,7 @@ grant select,insert,update,delete on public.schedules to anon;
 grant select,insert,update,delete on public.posts to anon;
 grant select,insert,update,delete on public.post_comments to anon;
 grant select,insert,update,delete on public.todos to anon;
+grant select,insert,update,delete on public.todo_comments to anon;
 grant usage,select on sequence public.meeting_revisions_id_seq to anon;
 
 -- 요청대로 로그인 없이 공개 읽기/쓰기를 허용하는 구조입니다.
