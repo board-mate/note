@@ -4,10 +4,10 @@ const cfg=window.APP_CONFIG||{};
 const configured=cfg.supabaseUrl&&!cfg.supabaseUrl.includes("YOUR_PROJECT")&&cfg.supabaseAnonKey&&!cfg.supabaseAnonKey.includes("YOUR_");
 const sb=configured?window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}}):null;
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const state={tab:"home",meetings:[],notices:[],schedules:[],posts:[],project:"전체",trash:false,q:"",postQ:"",todoFilter:"open",
+const state={tab:"home",meetings:[],notices:[],schedules:[],posts:[],todos:[],project:"전체",trash:false,q:"",postQ:"",todoFilter:"open",
   calendarMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),
   selectedDate:null};
-const KEYS={meetings:"group-meetings-v2",notices:"group-notices-v2",schedules:"group-schedules-v2",posts:"group-posts-v1",author:"group-author-v2"};
+const KEYS={meetings:"group-meetings-v2",notices:"group-notices-v2",schedules:"group-schedules-v2",posts:"group-posts-v1",todos:"group-todos-v1",author:"group-author-v2"};
 
 function now(){return new Date().toISOString()}
 function today(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}
@@ -23,6 +23,7 @@ function seed(){
  if(!localStorage.getItem(KEYS.notices)) localSet(KEYS.notices,[{id:crypto.randomUUID(),title:"모임 운영 페이지가 열렸습니다",body:"공지, 일정, 회의록, 할 일을 한 곳에서 관리합니다.",pinned:true,author:"샘플",created_at:now(),updated_at:now()}]);
  if(!localStorage.getItem(KEYS.schedules)){const d=new Date();d.setDate(d.getDate()+7);d.setMinutes(d.getMinutes()-d.getTimezoneOffset());localSet(KEYS.schedules,[{id:crypto.randomUUID(),title:"다음 정기모임",event_date:d.toISOString().slice(0,10),event_time:"19:00",location:"미정",note:"세부 장소는 추후 공지",author:"샘플",created_at:now(),updated_at:now()}])}
  if(!localStorage.getItem(KEYS.posts)) localSet(KEYS.posts,[{id:crypto.randomUUID(),title:"일반 게시판이 열렸습니다",body:"자유로운 이야기와 정보를 공유해보세요.",author:"샘플",created_at:now(),updated_at:now()}]);
+ if(!localStorage.getItem(KEYS.todos)) localSet(KEYS.todos,[]);
 }
 function banner(msg){const e=$("#modeBanner");e.textContent=msg;e.classList.remove("hidden")}
 function authorPrompt(){
@@ -33,16 +34,17 @@ function authorPrompt(){
 async function loadAll(){
  try{
   if(configured){
-   const [m,n,s,p]=await Promise.all([
+   const [m,n,s,p,t]=await Promise.all([
     sb.from("meetings").select("*").order("meeting_date",{ascending:false}).order("created_at",{ascending:false}),
     sb.from("announcements").select("*").order("pinned",{ascending:false}).order("created_at",{ascending:false}),
     sb.from("schedules").select("*").order("event_date",{ascending:true}).order("event_time",{ascending:true}),
-    sb.from("posts").select("*").order("created_at",{ascending:false})
+    sb.from("posts").select("*").order("created_at",{ascending:false}),
+    sb.from("todos").select("*").order("done",{ascending:true}).order("due",{ascending:true,nullsFirst:false}).order("created_at",{ascending:false})
    ]);
-   if(m.error)throw m.error;if(n.error)throw n.error;if(s.error)throw s.error;if(p.error)console.warn("게시판 테이블을 불러오지 못했습니다. schema.sql의 posts 마이그레이션을 확인하세요.",p.error);
-   state.meetings=m.data||[];state.notices=n.data||[];state.schedules=s.data||[];state.posts=p.error?[]:(p.data||[]);
+   if(m.error)throw m.error;if(n.error)throw n.error;if(s.error)throw s.error;if(p.error)console.warn("게시판 테이블을 불러오지 못했습니다. schema.sql의 posts 마이그레이션을 확인하세요.",p.error);if(t.error)console.warn("독립 할 일 테이블을 불러오지 못했습니다. migration_v6_todos.sql을 실행하세요.",t.error);
+   state.meetings=m.data||[];state.notices=n.data||[];state.schedules=s.data||[];state.posts=p.error?[]:(p.data||[]);state.todos=t.error?[]:(t.data||[]);
   }else{
-   seed();state.meetings=localGet(KEYS.meetings);state.notices=localGet(KEYS.notices);state.schedules=localGet(KEYS.schedules);state.posts=localGet(KEYS.posts)
+   seed();state.meetings=localGet(KEYS.meetings);state.notices=localGet(KEYS.notices);state.schedules=localGet(KEYS.schedules);state.posts=localGet(KEYS.posts);state.todos=localGet(KEYS.todos)
   }
   renderAll();
  }catch(e){console.error(e);alert("데이터를 불러오지 못했습니다. Supabase 설정을 확인하세요.")}
@@ -56,7 +58,8 @@ function setTab(tab){
  $(`#${tab}View`)?.classList.remove("hidden");
  $$(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.nav===tab));
  $$(".desktop-tab").forEach(b=>b.classList.toggle("active",b.dataset.nav===tab));
- $("#fab").classList.toggle("hidden",tab!=="meetings");
+ $("#fab").classList.toggle("hidden",!(["meetings","todos"].includes(tab)));
+ $("#fab").setAttribute("aria-label",tab==="todos"?"새 할 일":"새 회의록");
  window.scrollTo({top:0,behavior:"smooth"});
 }
 
@@ -75,7 +78,7 @@ function renderHome(){
 
  const todos=allTodos(false).slice(0,5);
  $("#todoCountBadge").textContent=allTodos(false).length;
- $("#todoHomeList").innerHTML=todos.length?todos.map(t=>`<div class="compact-item" data-todo-meeting="${t.meetingId}"><div class="compact-icon">✓</div><div class="compact-main"><div class="compact-title">${esc(t.task)}</div><div class="compact-sub">${esc(t.owner||"담당 미정")}${t.due?" · "+fmtDate(t.due):""}</div></div></div>`).join(""):`<p class="muted">남은 할 일이 없습니다.</p>`;
+ $("#todoHomeList").innerHTML=todos.length?todos.map(t=>`<div class="compact-item" ${t.source==="meeting"?`data-todo-meeting="${t.meetingId}"`:`data-todo-id="${t.id}"`}><div class="compact-icon">✓</div><div class="compact-main"><div class="compact-title">${esc(t.task)}</div><div class="compact-sub">${esc(t.owner||"담당 미정")}${t.due?" · "+fmtDate(t.due):""}${t.source==="standalone"?" · 독립 할 일":""}</div></div></div>`).join(""):`<p class="muted">남은 할 일이 없습니다.</p>`;
 
  const ss=upcomingSchedules().slice(0,4);
  $("#scheduleHomeList").innerHTML=ss.length?ss.map(s=>`<div class="compact-item" data-schedule-id="${s.id}"><div class="compact-icon">◷</div><div class="compact-main"><div class="compact-title">${esc(s.title)}</div><div class="compact-sub">${fmtDate(s.event_date)}${s.event_time?" · "+s.event_time.slice(0,5):""}</div></div></div>`).join(""):`<p class="muted">예정 일정이 없습니다.</p>`;
@@ -274,12 +277,29 @@ async function deletePost(){
 }
 
 function allTodos(includeDone=true){
- const arr=[];state.meetings.filter(m=>!m.deleted_at).forEach(m=>(m.actions||[]).forEach((a,i)=>{if(includeDone||!a.done)arr.push({...a,meetingId:m.id,meetingTitle:m.title,actionIndex:i,project:m.project})}));
- return arr.sort((a,b)=>(a.done-b.done)||String(a.due||"9999").localeCompare(String(b.due||"9999")))
+ const arr=[];
+ state.meetings.filter(m=>!m.deleted_at).forEach(m=>(m.actions||[]).forEach((a,i)=>{if(includeDone||!a.done)arr.push({...a,source:"meeting",meetingId:m.id,meetingTitle:m.title,actionIndex:i,project:m.project})}));
+ state.todos.forEach(t=>{if(includeDone||!t.done)arr.push({...t,source:"standalone",meetingTitle:"",project:t.project||""})});
+ return arr.sort((a,b)=>(Number(a.done)-Number(b.done))||String(a.due||"9999").localeCompare(String(b.due||"9999"))||String(b.created_at||"").localeCompare(String(a.created_at||"")))
 }
 function renderTodos(){
  let rows=allTodos(true);if(state.todoFilter==="open")rows=rows.filter(x=>!x.done);
- $("#todoList").innerHTML=rows.length?rows.map(t=>`<div class="todo-row ${t.done?"todo-done":""}" data-todo-meeting="${t.meetingId}" data-action-index="${t.actionIndex}"><input class="todo-check" type="checkbox" ${t.done?"checked":""}><div><div class="todo-title">${esc(t.task)}</div><div class="todo-sub">${esc(t.meetingTitle)} · ${esc(t.owner||"담당 미정")}</div></div><div class="todo-due">${t.due?fmtDate(t.due):""}</div></div>`).join(""):`<div class="empty"><h3>표시할 할 일이 없습니다</h3></div>`;
+ $("#todoList").innerHTML=rows.length?rows.map(t=>`<div class="todo-row ${t.done?"todo-done":""}" data-todo-source="${t.source}" ${t.source==="meeting"?`data-todo-meeting="${t.meetingId}" data-action-index="${t.actionIndex}"`:`data-todo-id="${t.id}"`}><input class="todo-check" type="checkbox" ${t.done?"checked":""}><div><div class="todo-title">${esc(t.task)}</div><div class="todo-sub">${t.source==="meeting"?`${esc(t.meetingTitle)} · `:"독립 할 일 · "}${esc(t.owner||"담당 미정")}${t.project?` · ${esc(t.project)}`:""}</div></div><div class="todo-due">${t.due?fmtDate(t.due):""}</div></div>`).join(""):`<div class="empty"><h3>표시할 할 일이 없습니다</h3><p>회의록 없이도 새 할 일을 바로 등록할 수 있습니다.</p></div>`;
+}
+function openTodo(t=null){
+ $("#todoId").value=t?.id||"";$("#todoTaskInput").value=t?.task||"";$("#todoOwnerInput").value=t?.owner||"";$("#todoDueInput").value=t?.due||"";$("#todoProjectInput").value=t?.project||"";$("#todoNoteInput").value=t?.note||"";$("#todoDoneInput").checked=!!t?.done;
+ $("#todoDialogTitle").textContent=t?"할 일 수정":"새 할 일";$("#deleteTodoBtn").classList.toggle("hidden",!t);$("#todoEditedText").textContent=t?`마지막 수정 ${fmtDT(t.updated_at||t.created_at)}${t.author?" · "+t.author:""}`:"";$("#todoDialog").showModal();
+}
+async function saveTodo(e){
+ e.preventDefault();if(!$("#todoForm").reportValidity())return;const author=await authorPrompt(),id=$("#todoId").value,p={task:$("#todoTaskInput").value.trim(),owner:$("#todoOwnerInput").value.trim(),due:$("#todoDueInput").value||null,project:$("#todoProjectInput").value.trim(),note:$("#todoNoteInput").value.trim(),done:$("#todoDoneInput").checked,author};
+ if(configured){const r=id?await sb.from("todos").update(p).eq("id",id):await sb.from("todos").insert(p);if(r.error)return alert(r.error.message)}
+ else{const rows=localGet(KEYS.todos);if(id){const i=rows.findIndex(x=>x.id===id);if(i>=0)rows[i]={...rows[i],...p,updated_at:now()}}else rows.unshift({id:crypto.randomUUID(),...p,created_at:now(),updated_at:now()});localSet(KEYS.todos,rows)}
+ $("#todoDialog").close();await loadAll();
+}
+async function deleteTodo(){
+ const id=$("#todoId").value;if(!id||!confirm("할 일을 삭제할까요?"))return;
+ if(configured){const r=await sb.from("todos").delete().eq("id",id);if(r.error)return alert(r.error.message)}else localSet(KEYS.todos,localGet(KEYS.todos).filter(x=>x.id!==id));
+ $("#todoDialog").close();await loadAll();
 }
 
 function addAction(a={}){
@@ -330,22 +350,31 @@ async function toggleTodo(meetingId,idx,done){
  await loadAll()
 }
 
+async function toggleStandaloneTodo(id,done){
+ const author=await authorPrompt();
+ if(configured){const r=await sb.from("todos").update({done,author}).eq("id",id);if(r.error)return alert(r.error.message)}
+ else{const rows=localGet(KEYS.todos),i=rows.findIndex(x=>x.id===id);if(i<0)return;rows[i]={...rows[i],done,author,updated_at:now()};localSet(KEYS.todos,rows)}
+ await loadAll();
+}
+
 async function showHistory(){
  const id=$("#meetingId").value;if(!id)return;$("#historyDialog").showModal();$("#historyList").innerHTML=`<p class="muted">불러오는 중…</p>`;
  let rows=[];if(configured){const r=await sb.from("meeting_revisions").select("*").eq("meeting_id",id).order("created_at",{ascending:false}).limit(50);if(r.error)return $("#historyList").innerHTML=`<p class="muted">이력을 불러오지 못했습니다.</p>`;rows=r.data||[]}else{const m=localGet(KEYS.meetings).find(x=>x.id===id);rows=(m?._history||[])}
  $("#historyList").innerHTML=rows.length?rows.map(x=>`<div class="history-item"><div><strong>${esc(x.editor||"익명")}</strong><small>${fmtDT(x.created_at)}</small></div></div>`).join(""):`<p class="muted">이전 버전이 없습니다.</p>`
 }
 
-$("#meetingForm").addEventListener("submit",saveMeeting);$("#noticeForm").addEventListener("submit",saveNotice);$("#scheduleForm").addEventListener("submit",saveSchedule);$("#postForm").addEventListener("submit",savePost);
+$("#meetingForm").addEventListener("submit",saveMeeting);$("#noticeForm").addEventListener("submit",saveNotice);$("#scheduleForm").addEventListener("submit",saveSchedule);$("#postForm").addEventListener("submit",savePost);$("#todoForm").addEventListener("submit",saveTodo);
 $("#addActionBtn").onclick=()=>addAction();$("#deleteMeetingBtn").onclick=softDeleteMeeting;$("#restoreMeetingBtn").onclick=restoreMeeting;$("#historyBtn").onclick=showHistory;
-$("#deleteNoticeBtn").onclick=deleteNotice;$("#deleteScheduleBtn").onclick=deleteSchedule;$("#deletePostBtn").onclick=deletePost;$("#refreshBtn").onclick=loadAll;
-["newMeetingTopBtn","emptyNewMeetingBtn","newMeetingHomeBtn","fab"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openMeeting()));
+$("#deleteNoticeBtn").onclick=deleteNotice;$("#deleteScheduleBtn").onclick=deleteSchedule;$("#deletePostBtn").onclick=deletePost;$("#deleteTodoBtn").onclick=deleteTodo;$("#refreshBtn").onclick=loadAll;
+["newMeetingTopBtn","emptyNewMeetingBtn","newMeetingHomeBtn"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openMeeting()));
 ["addNoticeBtn","newNoticeTopBtn"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openNotice()));
 ["addScheduleBtn","addScheduleHero","newScheduleTopBtn"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openSchedule()));
 ["newPostTopBtn"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openPost()));
+["newTodoTopBtn","newTodoHomeBtn"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openTodo()));
+$("#fab")?.addEventListener("click",()=>state.tab==="todos"?openTodo():openMeeting());
 $$("[data-nav]").forEach(b=>b.onclick=()=>setTab(b.dataset.nav));
 $("#desktopQuickMeeting")?.addEventListener("click",()=>openMeeting());
-$("#desktopQuickSchedule")?.addEventListener("click",()=>openSchedule());$$("[data-tab]").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+$("#desktopQuickSchedule")?.addEventListener("click",()=>openSchedule());$("#desktopQuickTodo")?.addEventListener("click",()=>openTodo());$$("[data-tab]").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 
 $("#calendarPrevBtn").onclick=()=>moveCalendar(-1);
 $("#calendarNextBtn").onclick=()=>moveCalendar(1);
@@ -375,8 +404,8 @@ $("#recentMeetingList").onclick=e=>{const c=e.target.closest("[data-meeting-id]"
 $("#noticeHomeList").onclick=e=>{const c=e.target.closest("[data-notice-id]");if(c)openNotice(state.notices.find(x=>x.id===c.dataset.noticeId))};$("#noticeList").onclick=$("#noticeHomeList").onclick;
 $("#scheduleHomeList").onclick=e=>{const c=e.target.closest("[data-schedule-id]");if(c)openSchedule(state.schedules.find(x=>x.id===c.dataset.scheduleId))};$("#scheduleList").onclick=$("#scheduleHomeList").onclick;
 $("#postSearch").oninput=e=>{state.postQ=e.target.value;renderPosts()};$("#postList").onclick=e=>{const c=e.target.closest("[data-post-id]");if(c)openPost(state.posts.find(x=>x.id===c.dataset.postId))};
-$("#todoHomeList").onclick=e=>{const c=e.target.closest("[data-todo-meeting]");if(c){const m=state.meetings.find(x=>x.id===c.dataset.todoMeeting);openMeeting(m)}};
-$("#todoList").onclick=e=>{const r=e.target.closest("[data-todo-meeting]");if(!r)return;if(e.target.classList.contains("todo-check"))toggleTodo(r.dataset.todoMeeting,Number(r.dataset.actionIndex),e.target.checked);else openMeeting(state.meetings.find(x=>x.id===r.dataset.todoMeeting))};
+$("#todoHomeList").onclick=e=>{const m=e.target.closest("[data-todo-meeting]");if(m)return openMeeting(state.meetings.find(x=>x.id===m.dataset.todoMeeting));const t=e.target.closest("[data-todo-id]");if(t)return openTodo(state.todos.find(x=>x.id===t.dataset.todoId))};
+$("#todoList").onclick=e=>{const r=e.target.closest("[data-todo-source]");if(!r)return;if(r.dataset.todoSource==="meeting"){if(e.target.classList.contains("todo-check"))toggleTodo(r.dataset.todoMeeting,Number(r.dataset.actionIndex),e.target.checked);else openMeeting(state.meetings.find(x=>x.id===r.dataset.todoMeeting));}else{if(e.target.classList.contains("todo-check"))toggleStandaloneTodo(r.dataset.todoId,e.target.checked);else openTodo(state.todos.find(x=>x.id===r.dataset.todoId));}};
 $$("[data-todo-filter]").forEach(b=>b.onclick=()=>{$$("[data-todo-filter]").forEach(x=>x.classList.remove("active"));b.classList.add("active");state.todoFilter=b.dataset.todoFilter;renderTodos()});
 $$("[data-close]").forEach(b=>b.onclick=()=>document.getElementById(b.dataset.close)?.close());
 $("#nameForm").onsubmit=e=>{e.preventDefault();const name=$("#authorInput").value.trim();if(!name)return;localStorage.setItem(KEYS.author,name);$("#nameDialog").close();if($("#nameForm")._resolve){$("#nameForm")._resolve(name);$("#nameForm")._resolve=null}};

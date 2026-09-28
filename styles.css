@@ -168,3 +168,11 @@ button,input,textarea{font:inherit}button{cursor:pointer}
 
 .board-card .board-preview{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.nav-link{cursor:pointer}
 @media(max-width:640px){.bottom-nav{overflow-x:auto;grid-template-columns:repeat(7,minmax(48px,1fr))}.nav-item small{font-size:9px}.holiday-name{font-size:7px;margin-bottom:2px}.calendar-day.holiday .cal-events{margin-top:0}}
+
+/* Standalone to-do */
+.panel-actions,.section-head-actions{display:flex;align-items:center;gap:8px}
+.todo-row[data-todo-source="standalone"]{border-left:3px solid #98a2b3}
+@media(max-width:640px){
+  .section-head-actions{align-items:stretch;flex-direction:column}
+  .section-head-actions .primary-btn{padding:9px 11px;font-size:12px}
+}
