@@ -351,3 +351,10 @@ Supabase 설정 후:
 - DB: Supabase
 - 프론트엔드: 순수 HTML / CSS / JavaScript
 - 배포: 정적 호스팅
+
+
+## v7 추가 기능
+- 일반 게시판 댓글: `post_comments` 테이블 사용, 게시글 삭제 시 댓글 cascade 삭제
+- 게시글/댓글 본문의 http(s) URL 자동 하이퍼링크
+- 게시글 편집기의 `하이퍼링크 삽입` 버튼은 `[문구](https://주소)` 형식 입력
+- 기존 Supabase에는 `migration_v7_comments.sql` 1회 실행 필요

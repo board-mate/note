@@ -60,6 +60,17 @@ create table if not exists public.posts (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.post_comments (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.posts(id) on delete cascade,
+  body text not null,
+  author text default '익명',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_post_comments_post_id_created_at
+on public.post_comments(post_id, created_at);
+
 create table if not exists public.todos (
   id uuid primary key default gen_random_uuid(),
   task text not null,
@@ -108,6 +119,7 @@ alter table public.meeting_revisions enable row level security;
 alter table public.announcements enable row level security;
 alter table public.schedules enable row level security;
 alter table public.posts enable row level security;
+alter table public.post_comments enable row level security;
 alter table public.todos enable row level security;
 
 drop policy if exists "public read meetings" on public.meetings;
@@ -117,6 +129,7 @@ drop policy if exists "public read revisions" on public.meeting_revisions;
 drop policy if exists "public all announcements" on public.announcements;
 drop policy if exists "public all schedules" on public.schedules;
 drop policy if exists "public all posts" on public.posts;
+drop policy if exists "public all post comments" on public.post_comments;
 drop policy if exists "public all todos" on public.todos;
 
 create policy "public read meetings" on public.meetings for select to anon using(true);
@@ -127,6 +140,7 @@ create policy "public read revisions" on public.meeting_revisions for select to 
 create policy "public all announcements" on public.announcements for all to anon using(true) with check(true);
 create policy "public all schedules" on public.schedules for all to anon using(true) with check(true);
 create policy "public all posts" on public.posts for all to anon using(true) with check(true);
+create policy "public all post comments" on public.post_comments for all to anon using(true) with check(true);
 create policy "public all todos" on public.todos for all to anon using(true) with check(true);
 
 grant usage on schema public to anon;
@@ -135,6 +149,7 @@ grant select on public.meeting_revisions to anon;
 grant select,insert,update,delete on public.announcements to anon;
 grant select,insert,update,delete on public.schedules to anon;
 grant select,insert,update,delete on public.posts to anon;
+grant select,insert,update,delete on public.post_comments to anon;
 grant select,insert,update,delete on public.todos to anon;
 grant usage,select on sequence public.meeting_revisions_id_seq to anon;
 

@@ -4,14 +4,25 @@ const cfg=window.APP_CONFIG||{};
 const configured=cfg.supabaseUrl&&!cfg.supabaseUrl.includes("YOUR_PROJECT")&&cfg.supabaseAnonKey&&!cfg.supabaseAnonKey.includes("YOUR_");
 const sb=configured?window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}}):null;
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const state={tab:"home",meetings:[],notices:[],schedules:[],posts:[],todos:[],project:"전체",trash:false,q:"",postQ:"",todoFilter:"open",
+const state={tab:"home",meetings:[],notices:[],schedules:[],posts:[],comments:[],todos:[],project:"전체",trash:false,q:"",postQ:"",todoFilter:"open",
   calendarMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),
   selectedDate:null};
-const KEYS={meetings:"group-meetings-v2",notices:"group-notices-v2",schedules:"group-schedules-v2",posts:"group-posts-v1",todos:"group-todos-v1",author:"group-author-v2"};
+const KEYS={meetings:"group-meetings-v2",notices:"group-notices-v2",schedules:"group-schedules-v2",posts:"group-posts-v1",comments:"group-comments-v1",todos:"group-todos-v1",author:"group-author-v2"};
 
 function now(){return new Date().toISOString()}
 function today(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}
 function esc(v=""){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function linkify(v=""){
+ let s=esc(v);
+ const md=[];
+ s=s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/gi,(_,label,url)=>{const i=md.push(`<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`)-1;return `@@MDLINK${i}@@`});
+ s=s.replace(/(^|[\s>])(https?:\/\/[^\s<]+)/gi,(m,prefix,url)=>{
+  let trail="";while(/[.,!?;:)]$/.test(url)){trail=url.slice(-1)+trail;url=url.slice(0,-1)}
+  return `${prefix}<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${trail}`;
+ });
+ md.forEach((a,i)=>{s=s.replace(`@@MDLINK${i}@@`,a)});
+ return s.replace(/\n/g,"<br>");
+}
 function fmtDate(s){if(!s)return"";const[y,m,d]=s.slice(0,10).split("-");return`${y}.${m}.${d}`}
 function fmtDT(s){if(!s)return"";return new Intl.DateTimeFormat("ko-KR",{dateStyle:"medium",timeStyle:"short"}).format(new Date(s))}
 function monthDay(s){const d=new Date(s+"T00:00:00");return{m:`${d.getMonth()+1}월`,d:d.getDate(),w:new Intl.DateTimeFormat("ko-KR",{weekday:"short"}).format(d)}}
@@ -22,7 +33,8 @@ function seed(){
  if(!localStorage.getItem(KEYS.meetings)) localSet(KEYS.meetings,[{id:crypto.randomUUID(),project:"운영회의",title:"샘플 정기모임",meeting_date:today(),start_time:"19:00",location:"온라인",attendees:"김OO, 이OO, 박OO",summary:"이번 달 일정과 준비사항을 확인했습니다.",discussion:"다음 모임 일정과 역할을 논의했습니다.",decisions:"다음 모임은 둘째 주 토요일로 정했습니다.",actions:[{task:"장소 후보 확인",owner:"김OO",due:today(),done:false},{task:"공지문 작성",owner:"이OO",due:today(),done:true}],links:"",author:"샘플",created_at:now(),updated_at:now(),deleted_at:null,_history:[]}]);
  if(!localStorage.getItem(KEYS.notices)) localSet(KEYS.notices,[{id:crypto.randomUUID(),title:"모임 운영 페이지가 열렸습니다",body:"공지, 일정, 회의록, 할 일을 한 곳에서 관리합니다.",pinned:true,author:"샘플",created_at:now(),updated_at:now()}]);
  if(!localStorage.getItem(KEYS.schedules)){const d=new Date();d.setDate(d.getDate()+7);d.setMinutes(d.getMinutes()-d.getTimezoneOffset());localSet(KEYS.schedules,[{id:crypto.randomUUID(),title:"다음 정기모임",event_date:d.toISOString().slice(0,10),event_time:"19:00",location:"미정",note:"세부 장소는 추후 공지",author:"샘플",created_at:now(),updated_at:now()}])}
- if(!localStorage.getItem(KEYS.posts)) localSet(KEYS.posts,[{id:crypto.randomUUID(),title:"일반 게시판이 열렸습니다",body:"자유로운 이야기와 정보를 공유해보세요.",author:"샘플",created_at:now(),updated_at:now()}]);
+ if(!localStorage.getItem(KEYS.posts)) localSet(KEYS.posts,[{id:crypto.randomUUID(),title:"일반 게시판이 열렸습니다",body:"자유로운 이야기와 정보를 공유해보세요.\n\n링크도 바로 붙여넣을 수 있습니다: https://board-mate.github.io/arena/",author:"샘플",created_at:now(),updated_at:now()}]);
+ if(!localStorage.getItem(KEYS.comments)) localSet(KEYS.comments,[]);
  if(!localStorage.getItem(KEYS.todos)) localSet(KEYS.todos,[]);
 }
 function banner(msg){const e=$("#modeBanner");e.textContent=msg;e.classList.remove("hidden")}
@@ -34,17 +46,18 @@ function authorPrompt(){
 async function loadAll(){
  try{
   if(configured){
-   const [m,n,s,p,t]=await Promise.all([
+   const [m,n,s,p,c,t]=await Promise.all([
     sb.from("meetings").select("*").order("meeting_date",{ascending:false}).order("created_at",{ascending:false}),
     sb.from("announcements").select("*").order("pinned",{ascending:false}).order("created_at",{ascending:false}),
     sb.from("schedules").select("*").order("event_date",{ascending:true}).order("event_time",{ascending:true}),
     sb.from("posts").select("*").order("created_at",{ascending:false}),
+    sb.from("post_comments").select("*").order("created_at",{ascending:true}),
     sb.from("todos").select("*").order("done",{ascending:true}).order("due",{ascending:true,nullsFirst:false}).order("created_at",{ascending:false})
    ]);
-   if(m.error)throw m.error;if(n.error)throw n.error;if(s.error)throw s.error;if(p.error)console.warn("게시판 테이블을 불러오지 못했습니다. schema.sql의 posts 마이그레이션을 확인하세요.",p.error);if(t.error)console.warn("독립 할 일 테이블을 불러오지 못했습니다. migration_v6_todos.sql을 실행하세요.",t.error);
-   state.meetings=m.data||[];state.notices=n.data||[];state.schedules=s.data||[];state.posts=p.error?[]:(p.data||[]);state.todos=t.error?[]:(t.data||[]);
+   if(m.error)throw m.error;if(n.error)throw n.error;if(s.error)throw s.error;if(p.error)console.warn("게시판 테이블을 불러오지 못했습니다. schema.sql의 posts 마이그레이션을 확인하세요.",p.error);if(c.error)console.warn("댓글 테이블을 불러오지 못했습니다. migration_v7_comments.sql을 실행하세요.",c.error);if(t.error)console.warn("독립 할 일 테이블을 불러오지 못했습니다. migration_v6_todos.sql을 실행하세요.",t.error);
+   state.meetings=m.data||[];state.notices=n.data||[];state.schedules=s.data||[];state.posts=p.error?[]:(p.data||[]);state.comments=c.error?[]:(c.data||[]);state.todos=t.error?[]:(t.data||[]);
   }else{
-   seed();state.meetings=localGet(KEYS.meetings);state.notices=localGet(KEYS.notices);state.schedules=localGet(KEYS.schedules);state.posts=localGet(KEYS.posts);state.todos=localGet(KEYS.todos)
+   seed();state.meetings=localGet(KEYS.meetings);state.notices=localGet(KEYS.notices);state.schedules=localGet(KEYS.schedules);state.posts=localGet(KEYS.posts);state.comments=localGet(KEYS.comments);state.todos=localGet(KEYS.todos)
   }
   renderAll();
  }catch(e){console.error(e);alert("데이터를 불러오지 못했습니다. Supabase 설정을 확인하세요.")}
@@ -254,26 +267,58 @@ function filteredPosts(){
  const q=state.postQ.trim().toLowerCase();
  return state.posts.filter(p=>!q||[p.title,p.body,p.author].join(" ").toLowerCase().includes(q));
 }
+function postComments(postId){return state.comments.filter(c=>c.post_id===postId).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)))}
 function renderPosts(){
  const rows=filteredPosts();
  $("#postCountMeta").textContent=`${rows.length}건`;
- $("#postList").innerHTML=rows.length?rows.map(p=>`<article class="stack-card board-card" data-post-id="${p.id}"><div class="compact-icon">▤</div><div class="stack-card-main"><h3>${esc(p.title)}</h3><p class="board-preview">${esc(p.body||"")}</p><div class="stack-meta">${esc(p.author||"익명")} · ${fmtDT(p.updated_at||p.created_at)}</div></div></article>`).join(""):`<div class="empty"><div class="empty-icon">▤</div><h3>게시글이 없습니다</h3><p>첫 게시글을 작성해보세요.</p></div>`;
+ $("#postList").innerHTML=rows.length?rows.map(p=>{const cc=postComments(p.id).length;return`<article class="stack-card board-card" data-post-id="${p.id}"><div class="compact-icon">▤</div><div class="stack-card-main"><h3>${esc(p.title)}</h3><p class="board-preview">${esc(p.body||"")}</p><div class="stack-meta">${esc(p.author||"익명")} · ${fmtDT(p.updated_at||p.created_at)} · 댓글 ${cc}</div></div></article>`}).join(""):`<div class="empty"><div class="empty-icon">▤</div><h3>게시글이 없습니다</h3><p>첫 게시글을 작성해보세요.</p></div>`;
 }
 function openPost(p=null){
  $("#postId").value=p?.id||"";$("#postTitleInput").value=p?.title||"";$("#postBodyInput").value=p?.body||"";
  $("#postDialogTitle").textContent=p?"게시글 수정":"새 게시글";$("#deletePostBtn").classList.toggle("hidden",!p);
  $("#postEditedText").textContent=p?`마지막 수정 ${fmtDT(p.updated_at||p.created_at)}${p.author?" · "+p.author:""}`:"";$("#postDialog").showModal();
 }
+function showPost(p){
+ if(!p)return;
+ $("#postDetailId").value=p.id;$("#postDetailTitle").textContent=p.title;$("#postDetailMeta").textContent=`${p.author||"익명"} · ${fmtDT(p.updated_at||p.created_at)}`;
+ $("#postDetailBody").innerHTML=linkify(p.body||"");renderPostComments(p.id);$("#postDetailDialog").showModal();
+}
+function renderPostComments(postId){
+ const rows=postComments(postId);$("#postCommentCount").textContent=`댓글 ${rows.length}`;
+ $("#postCommentList").innerHTML=rows.length?rows.map(c=>`<div class="comment-item" data-comment-id="${c.id}"><div class="comment-head"><strong>${esc(c.author||"익명")}</strong><span>${fmtDT(c.created_at)}</span></div><div class="comment-body">${linkify(c.body||"")}</div><button type="button" class="comment-delete" data-delete-comment="${c.id}" aria-label="댓글 삭제">삭제</button></div>`).join(""):`<p class="muted comment-empty">아직 댓글이 없습니다.</p>`;
+}
 async function savePost(e){
  e.preventDefault();if(!$("#postForm").reportValidity())return;const author=await authorPrompt(),id=$("#postId").value,p={title:$("#postTitleInput").value.trim(),body:$("#postBodyInput").value.trim(),author};
- if(configured){const r=id?await sb.from("posts").update(p).eq("id",id):await sb.from("posts").insert(p);if(r.error)return alert(r.error.message)}
- else{const rows=localGet(KEYS.posts);if(id){const i=rows.findIndex(x=>x.id===id);if(i>=0)rows[i]={...rows[i],...p,updated_at:now()}}else rows.unshift({id:crypto.randomUUID(),...p,created_at:now(),updated_at:now()});localSet(KEYS.posts,rows)}
- $("#postDialog").close();await loadAll();
+ let savedId=id;
+ if(configured){const r=id?await sb.from("posts").update(p).eq("id",id).select().single():await sb.from("posts").insert(p).select().single();if(r.error)return alert(r.error.message);savedId=r.data?.id||id}
+ else{const rows=localGet(KEYS.posts);if(id){const i=rows.findIndex(x=>x.id===id);if(i>=0)rows[i]={...rows[i],...p,updated_at:now()}}else{savedId=crypto.randomUUID();rows.unshift({id:savedId,...p,created_at:now(),updated_at:now()})}localSet(KEYS.posts,rows)}
+ $("#postDialog").close();await loadAll();const saved=state.posts.find(x=>x.id===savedId);if(saved)showPost(saved);
 }
 async function deletePost(){
- const id=$("#postId").value;if(!id||!confirm("게시글을 삭제할까요?"))return;
- if(configured){const r=await sb.from("posts").delete().eq("id",id);if(r.error)return alert(r.error.message)}else localSet(KEYS.posts,localGet(KEYS.posts).filter(x=>x.id!==id));
- $("#postDialog").close();await loadAll();
+ const id=$("#postId").value;if(!id||!confirm("게시글을 삭제할까요? 댓글도 함께 삭제됩니다."))return;
+ if(configured){const r=await sb.from("posts").delete().eq("id",id);if(r.error)return alert(r.error.message)}
+ else{localSet(KEYS.posts,localGet(KEYS.posts).filter(x=>x.id!==id));localSet(KEYS.comments,localGet(KEYS.comments).filter(x=>x.post_id!==id))}
+ $("#postDialog").close();$("#postDetailDialog")?.close();await loadAll();
+}
+async function saveComment(e){
+ e.preventDefault();const postId=$("#postDetailId").value,body=$("#postCommentInput").value.trim();if(!postId||!body)return;
+ const author=await authorPrompt(),row={post_id:postId,body,author};
+ if(configured){const r=await sb.from("post_comments").insert(row);if(r.error)return alert(r.error.message)}
+ else{const rows=localGet(KEYS.comments);rows.push({id:crypto.randomUUID(),...row,created_at:now()});localSet(KEYS.comments,rows)}
+ $("#postCommentInput").value="";await loadAll();renderPostComments(postId);
+}
+async function deleteComment(id){
+ if(!id||!confirm("댓글을 삭제할까요?"))return;const postId=$("#postDetailId").value;
+ if(configured){const r=await sb.from("post_comments").delete().eq("id",id);if(r.error)return alert(r.error.message)}
+ else localSet(KEYS.comments,localGet(KEYS.comments).filter(x=>x.id!==id));
+ await loadAll();renderPostComments(postId);
+}
+function insertPostLink(){
+ const ta=$("#postBodyInput"),url=prompt("연결할 주소를 입력하세요. (https://...)","https://");if(!url)return;
+ if(!/^https?:\/\//i.test(url.trim()))return alert("http:// 또는 https://로 시작하는 주소를 입력해주세요.");
+ const label=prompt("화면에 표시할 문구를 입력하세요. 비워두면 주소가 표시됩니다.","")||url.trim();
+ const text=`[${label}](${url.trim()})`,start=ta.selectionStart??ta.value.length,end=ta.selectionEnd??ta.value.length;
+ ta.setRangeText(text,start,end,"end");ta.focus();
 }
 
 function allTodos(includeDone=true){
@@ -363,9 +408,9 @@ async function showHistory(){
  $("#historyList").innerHTML=rows.length?rows.map(x=>`<div class="history-item"><div><strong>${esc(x.editor||"익명")}</strong><small>${fmtDT(x.created_at)}</small></div></div>`).join(""):`<p class="muted">이전 버전이 없습니다.</p>`
 }
 
-$("#meetingForm").addEventListener("submit",saveMeeting);$("#noticeForm").addEventListener("submit",saveNotice);$("#scheduleForm").addEventListener("submit",saveSchedule);$("#postForm").addEventListener("submit",savePost);$("#todoForm").addEventListener("submit",saveTodo);
+$("#meetingForm").addEventListener("submit",saveMeeting);$("#noticeForm").addEventListener("submit",saveNotice);$("#scheduleForm").addEventListener("submit",saveSchedule);$("#postForm").addEventListener("submit",savePost);$("#postCommentForm").addEventListener("submit",saveComment);$("#todoForm").addEventListener("submit",saveTodo);
 $("#addActionBtn").onclick=()=>addAction();$("#deleteMeetingBtn").onclick=softDeleteMeeting;$("#restoreMeetingBtn").onclick=restoreMeeting;$("#historyBtn").onclick=showHistory;
-$("#deleteNoticeBtn").onclick=deleteNotice;$("#deleteScheduleBtn").onclick=deleteSchedule;$("#deletePostBtn").onclick=deletePost;$("#deleteTodoBtn").onclick=deleteTodo;$("#refreshBtn").onclick=loadAll;
+$("#deleteNoticeBtn").onclick=deleteNotice;$("#deleteScheduleBtn").onclick=deleteSchedule;$("#deletePostBtn").onclick=deletePost;$("#deleteTodoBtn").onclick=deleteTodo;$("#refreshBtn").onclick=loadAll;$("#insertPostLinkBtn").onclick=insertPostLink;
 ["newMeetingTopBtn","emptyNewMeetingBtn","newMeetingHomeBtn"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openMeeting()));
 ["addNoticeBtn","newNoticeTopBtn"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openNotice()));
 ["addScheduleBtn","addScheduleHero","newScheduleTopBtn"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openSchedule()));
@@ -403,7 +448,9 @@ $("#meetingList").onclick=e=>{const q=e.target.closest("[data-quick-edit]");if(q
 $("#recentMeetingList").onclick=e=>{const c=e.target.closest("[data-meeting-id]");if(c){const m=state.meetings.find(x=>x.id===c.dataset.meetingId);openMeeting(m)}};
 $("#noticeHomeList").onclick=e=>{const c=e.target.closest("[data-notice-id]");if(c)openNotice(state.notices.find(x=>x.id===c.dataset.noticeId))};$("#noticeList").onclick=$("#noticeHomeList").onclick;
 $("#scheduleHomeList").onclick=e=>{const c=e.target.closest("[data-schedule-id]");if(c)openSchedule(state.schedules.find(x=>x.id===c.dataset.scheduleId))};$("#scheduleList").onclick=$("#scheduleHomeList").onclick;
-$("#postSearch").oninput=e=>{state.postQ=e.target.value;renderPosts()};$("#postList").onclick=e=>{const c=e.target.closest("[data-post-id]");if(c)openPost(state.posts.find(x=>x.id===c.dataset.postId))};
+$("#postSearch").oninput=e=>{state.postQ=e.target.value;renderPosts()};$("#postList").onclick=e=>{const c=e.target.closest("[data-post-id]");if(c)showPost(state.posts.find(x=>x.id===c.dataset.postId))};
+$("#editPostFromDetailBtn").onclick=()=>{const p=state.posts.find(x=>x.id===$("#postDetailId").value);$("#postDetailDialog").close();if(p)openPost(p)};
+$("#postCommentList").onclick=e=>{const b=e.target.closest("[data-delete-comment]");if(b)deleteComment(b.dataset.deleteComment)};
 $("#todoHomeList").onclick=e=>{const m=e.target.closest("[data-todo-meeting]");if(m)return openMeeting(state.meetings.find(x=>x.id===m.dataset.todoMeeting));const t=e.target.closest("[data-todo-id]");if(t)return openTodo(state.todos.find(x=>x.id===t.dataset.todoId))};
 $("#todoList").onclick=e=>{const r=e.target.closest("[data-todo-source]");if(!r)return;if(r.dataset.todoSource==="meeting"){if(e.target.classList.contains("todo-check"))toggleTodo(r.dataset.todoMeeting,Number(r.dataset.actionIndex),e.target.checked);else openMeeting(state.meetings.find(x=>x.id===r.dataset.todoMeeting));}else{if(e.target.classList.contains("todo-check"))toggleStandaloneTodo(r.dataset.todoId,e.target.checked);else openTodo(state.todos.find(x=>x.id===r.dataset.todoId));}};
 $$("[data-todo-filter]").forEach(b=>b.onclick=()=>{$$("[data-todo-filter]").forEach(x=>x.classList.remove("active"));b.classList.add("active");state.todoFilter=b.dataset.todoFilter;renderTodos()});

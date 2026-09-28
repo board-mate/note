@@ -176,3 +176,29 @@ button,input,textarea{font:inherit}button{cursor:pointer}
   .section-head-actions{align-items:stretch;flex-direction:column}
   .section-head-actions .primary-btn{padding:9px 11px;font-size:12px}
 }
+
+
+/* ===== v7 board comments + hyperlinks ===== */
+.board-card .stack-meta{display:flex;gap:4px;align-items:center}
+.editor-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:-4px 0 12px}
+.compact-btn{padding:7px 10px;font-size:12px}
+.post-detail-modal{width:min(760px,calc(100% - 28px))}
+.post-detail-meta{font-size:12px;color:var(--muted);margin-top:-10px;margin-bottom:18px}
+.post-detail-body{font-size:15px;line-height:1.75;color:#344054;white-space:normal;overflow-wrap:anywhere;padding:18px 0 22px;border-bottom:1px solid var(--line)}
+.post-detail-body a,.comment-body a{color:#175cd3;text-decoration:underline;text-underline-offset:2px;word-break:break-all}
+.post-detail-actions{display:flex;justify-content:flex-end;padding:12px 0}
+.comment-section{border-top:1px solid var(--line);padding-top:18px;margin-top:4px}
+.comment-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.comment-section-head h3{margin:0;font-size:16px}
+.comment-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.comment-item{position:relative;background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:12px 54px 12px 13px}
+.comment-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}.comment-head strong{font-size:13px}.comment-head span{font-size:11px;color:var(--muted)}
+.comment-body{font-size:14px;line-height:1.6;color:#344054;overflow-wrap:anywhere}
+.comment-delete{position:absolute;right:10px;top:10px;border:0;background:transparent;color:#98a2b3;font-size:11px;cursor:pointer}.comment-delete:hover{color:#d92d20}
+.comment-form{padding:12px;background:#fff;border:1px solid var(--line);border-radius:14px}.comment-form .field{margin-bottom:8px}.comment-form-actions{display:flex;justify-content:flex-end}
+.comment-empty{padding:10px 2px}
+@media(max-width:640px){
+  .post-detail-modal{width:100%}
+  .editor-tools{align-items:flex-start}
+  .editor-tools .muted{font-size:11px}
+}

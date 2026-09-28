@@ -391,7 +391,8 @@
       </div>
       <input id="postId" type="hidden">
       <label class="field"><span>제목 *</span><input id="postTitleInput" required maxlength="160" placeholder="게시글 제목"></label>
-      <label class="field"><span>내용 *</span><textarea id="postBodyInput" rows="11" required placeholder="자유롭게 내용을 작성하세요."></textarea></label>
+      <label class="field"><span>내용 *</span><textarea id="postBodyInput" rows="11" required placeholder="자유롭게 내용을 작성하세요. URL을 붙여넣으면 게시글에서 클릭 가능한 링크로 표시됩니다."></textarea></label>
+      <div class="editor-tools"><button type="button" id="insertPostLinkBtn" class="secondary-btn compact-btn">🔗 하이퍼링크 삽입</button><span class="muted">URL 자동 링크 · [문구](https://주소) 형식 지원</span></div>
       <div id="postEditedText" class="editor-meta"></div>
       <div class="modal-actions">
         <button type="button" id="deletePostBtn" class="danger-text hidden">삭제</button>
@@ -401,6 +402,27 @@
         </div>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="postDetailDialog" class="modal post-detail-modal">
+    <div class="modal-head">
+      <div><div class="eyebrow">BOARD</div><h2 id="postDetailTitle">게시글</h2></div>
+      <button type="button" class="icon-btn close-btn" data-close="postDetailDialog">✕</button>
+    </div>
+    <input id="postDetailId" type="hidden">
+    <div id="postDetailMeta" class="post-detail-meta"></div>
+    <div id="postDetailBody" class="post-detail-body"></div>
+    <div class="post-detail-actions">
+      <button type="button" id="editPostFromDetailBtn" class="secondary-btn">글 수정</button>
+    </div>
+    <section class="comment-section">
+      <div class="comment-section-head"><h3>댓글</h3><span id="postCommentCount" class="muted">댓글 0</span></div>
+      <div id="postCommentList" class="comment-list"></div>
+      <form id="postCommentForm" class="comment-form">
+        <label class="field"><span>댓글 작성</span><textarea id="postCommentInput" rows="3" required maxlength="2000" placeholder="댓글을 입력하세요. URL은 자동으로 링크가 됩니다."></textarea></label>
+        <div class="comment-form-actions"><button type="submit" class="primary-btn">댓글 등록</button></div>
+      </form>
+    </section>
   </dialog>
 
   <dialog id="todoDialog" class="modal small-modal">
