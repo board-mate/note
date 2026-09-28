@@ -39,7 +39,7 @@ button,input,textarea{font:inherit}button{cursor:pointer}
 .editor-meta{text-align:right;color:var(--muted);font-size:12px;min-height:18px}.modal-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-top:16px;border-top:1px solid var(--line);margin-top:14px}.left-actions,.right-actions{display:flex;gap:8px;align-items:center}.toggle-row{display:flex;gap:8px;align-items:center;margin:4px 0 16px}.toggle-row input{width:18px;height:18px}
 .history-list{display:flex;flex-direction:column;gap:9px}.history-item{border:1px solid var(--line);border-radius:13px;padding:12px;display:flex;align-items:center;justify-content:space-between}.history-item strong{display:block}.history-item small{color:var(--muted)}
 .fab{display:none;position:fixed;right:17px;bottom:88px;width:58px;height:58px;border-radius:50%;border:0;background:var(--brand);color:#fff;font-size:28px;box-shadow:0 12px 28px rgba(16,24,40,.28);z-index:28}
-.bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:27;padding:6px 6px max(6px,env(safe-area-inset-bottom));background:rgba(255,255,255,.97);backdrop-filter:blur(14px);border-top:1px solid var(--line);grid-template-columns:repeat(5,1fr)}.nav-item{border:0;background:transparent;color:#8a94a5;padding:5px 2px;display:flex;flex-direction:column;align-items:center;gap:2px}.nav-item span{font-size:19px}.nav-item small{font-size:10px;font-weight:800}.nav-item.active{color:#111827}.mobile-only{display:none}
+.bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:27;padding:6px 6px max(6px,env(safe-area-inset-bottom));background:rgba(255,255,255,.97);backdrop-filter:blur(14px);border-top:1px solid var(--line);grid-template-columns:repeat(7,1fr)}.nav-item{border:0;background:transparent;color:#8a94a5;padding:5px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;text-decoration:none}.nav-item span{font-size:19px}.nav-item small{font-size:10px;font-weight:800}.nav-item.active{color:#111827}.mobile-only{display:none}
 @media(max-width:900px){.meeting-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){
   body{background:#f7f8fa}.desktop-only{display:none!important}.mobile-only{display:grid}.topbar{padding:13px 15px}.topbar h1{font-size:19px}.shell{width:calc(100% - 22px);margin:12px auto 118px}
@@ -63,13 +63,14 @@ button,input,textarea{font:inherit}button{cursor:pointer}
 .calendar-legend{display:flex;gap:14px;align-items:center;color:var(--muted);font-size:12px;margin:4px 0 12px}
 .calendar-legend span{display:flex;align-items:center;gap:6px}
 .legend-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
-.meeting-dot{background:#111827}.schedule-dot{background:#98a2b3}
+.meeting-dot{background:#111827}.schedule-dot{background:#98a2b3}.holiday-dot{background:#d92d20}
 .calendar-weekdays{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid var(--line);border-bottom:0;border-radius:14px 14px 0 0;overflow:hidden;background:#fafafa}
 .calendar-weekdays span{text-align:center;padding:9px 4px;font-size:12px;font-weight:750;color:var(--muted)}
 .calendar-weekdays span:first-child{color:#b42318}
 .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);border-left:1px solid var(--line);border-top:1px solid var(--line)}
 .calendar-day{min-height:118px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:7px;background:#fff;cursor:pointer;overflow:hidden}
 .calendar-day:nth-child(7n+1) .day-number{color:#b42318}
+.calendar-day.holiday .day-number{color:#b42318}.calendar-day.today.holiday .day-number{color:#fff}.holiday-name{font-size:9px;color:#b42318;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:-2px 0 4px;padding-left:2px}
 .calendar-day.other-month{background:#fafafa;color:#98a2b3}
 .calendar-day.selected{box-shadow:inset 0 0 0 2px #111827}
 .calendar-day.today .day-number{background:#111827;color:#fff}
@@ -77,7 +78,7 @@ button,input,textarea{font:inherit}button{cursor:pointer}
 .cal-events{display:flex;flex-direction:column;gap:4px}
 .cal-event{border-radius:7px;padding:4px 6px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid var(--line)}
 .cal-event.meeting{background:#111827;color:#fff;border-color:#111827}
-.cal-event.schedule{background:#f2f4f7;color:#344054}
+.cal-event.schedule{background:#f2f4f7;color:#344054}.cal-event.holiday{background:#fff1f0;color:#b42318;border-color:#fecdca}
 .cal-more{font-size:10px;color:var(--muted);padding:1px 4px}
 .day-agenda{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
 .day-agenda .panel-head{margin-bottom:10px}
@@ -112,7 +113,7 @@ button,input,textarea{font:inherit}button{cursor:pointer}
   border:0;background:transparent;border-radius:10px;padding:9px 13px;
   color:#667085;font-weight:750;
 }
-.desktop-tab:hover{background:#f4f6f8;color:#111827}
+.desktop-tab:hover{background:#f4f6f8;color:#111827}.desktop-link{text-decoration:none;display:inline-flex;align-items:center}
 .desktop-tab.active{background:#111827;color:#fff}
 .desktop-nav-spacer{flex:1}
 .desktop-action{
@@ -164,3 +165,6 @@ button,input,textarea{font:inherit}button{cursor:pointer}
   .meeting-card:hover,.stack-card:hover{transform:none;box-shadow:none}
   .calendar-shell{box-shadow:none}
 }
+
+.board-card .board-preview{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.nav-link{cursor:pointer}
+@media(max-width:640px){.bottom-nav{overflow-x:auto;grid-template-columns:repeat(7,minmax(48px,1fr))}.nav-item small{font-size:9px}.holiday-name{font-size:7px;margin-bottom:2px}.calendar-day.holiday .cal-events{margin-top:0}}

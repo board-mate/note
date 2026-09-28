@@ -97,3 +97,14 @@
 - schema.sql
 - manifest.webmanifest
 - sw.js
+
+
+## v5 추가 기능
+- 대한민국 공휴일/대체공휴일 달력 표시 (고정 공휴일 + 음력 설/추석/부처님오신날 + 2026년 노동절·제헌절 + 최근 선거/임시공휴일)
+- BoardMate Arcade 바로가기: https://board-mate.github.io/arena/
+- 일반 게시판 CRUD (Supabase `posts` 테이블 / 미리보기 localStorage 지원)
+
+기존 Supabase를 사용 중이라면 배포 전에 최신 `schema.sql`을 SQL Editor에서 다시 실행해 `posts` 테이블과 정책을 추가하세요.
+
+### 공휴일 기준
+현행 「관공서의 공휴일에 관한 규정」을 기준으로 표시합니다. 2026년부터 노동절(5월 1일)과 제헌절(7월 17일)을 반영했으며, 2026년 6월 3일 제9회 전국동시지방선거도 포함했습니다. 정부가 수시 지정하는 향후 임시공휴일과 새 선거일은 `app.js`의 `special` 목록에 추가하면 됩니다.

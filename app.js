@@ -4,10 +4,10 @@ const cfg=window.APP_CONFIG||{};
 const configured=cfg.supabaseUrl&&!cfg.supabaseUrl.includes("YOUR_PROJECT")&&cfg.supabaseAnonKey&&!cfg.supabaseAnonKey.includes("YOUR_");
 const sb=configured?window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}}):null;
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const state={tab:"home",meetings:[],notices:[],schedules:[],project:"전체",trash:false,q:"",todoFilter:"open",
+const state={tab:"home",meetings:[],notices:[],schedules:[],posts:[],project:"전체",trash:false,q:"",postQ:"",todoFilter:"open",
   calendarMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),
   selectedDate:null};
-const KEYS={meetings:"group-meetings-v2",notices:"group-notices-v2",schedules:"group-schedules-v2",author:"group-author-v2"};
+const KEYS={meetings:"group-meetings-v2",notices:"group-notices-v2",schedules:"group-schedules-v2",posts:"group-posts-v1",author:"group-author-v2"};
 
 function now(){return new Date().toISOString()}
 function today(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}
@@ -22,6 +22,7 @@ function seed(){
  if(!localStorage.getItem(KEYS.meetings)) localSet(KEYS.meetings,[{id:crypto.randomUUID(),project:"운영회의",title:"샘플 정기모임",meeting_date:today(),start_time:"19:00",location:"온라인",attendees:"김OO, 이OO, 박OO",summary:"이번 달 일정과 준비사항을 확인했습니다.",discussion:"다음 모임 일정과 역할을 논의했습니다.",decisions:"다음 모임은 둘째 주 토요일로 정했습니다.",actions:[{task:"장소 후보 확인",owner:"김OO",due:today(),done:false},{task:"공지문 작성",owner:"이OO",due:today(),done:true}],links:"",author:"샘플",created_at:now(),updated_at:now(),deleted_at:null,_history:[]}]);
  if(!localStorage.getItem(KEYS.notices)) localSet(KEYS.notices,[{id:crypto.randomUUID(),title:"모임 운영 페이지가 열렸습니다",body:"공지, 일정, 회의록, 할 일을 한 곳에서 관리합니다.",pinned:true,author:"샘플",created_at:now(),updated_at:now()}]);
  if(!localStorage.getItem(KEYS.schedules)){const d=new Date();d.setDate(d.getDate()+7);d.setMinutes(d.getMinutes()-d.getTimezoneOffset());localSet(KEYS.schedules,[{id:crypto.randomUUID(),title:"다음 정기모임",event_date:d.toISOString().slice(0,10),event_time:"19:00",location:"미정",note:"세부 장소는 추후 공지",author:"샘플",created_at:now(),updated_at:now()}])}
+ if(!localStorage.getItem(KEYS.posts)) localSet(KEYS.posts,[{id:crypto.randomUUID(),title:"일반 게시판이 열렸습니다",body:"자유로운 이야기와 정보를 공유해보세요.",author:"샘플",created_at:now(),updated_at:now()}]);
 }
 function banner(msg){const e=$("#modeBanner");e.textContent=msg;e.classList.remove("hidden")}
 function authorPrompt(){
@@ -32,20 +33,21 @@ function authorPrompt(){
 async function loadAll(){
  try{
   if(configured){
-   const [m,n,s]=await Promise.all([
+   const [m,n,s,p]=await Promise.all([
     sb.from("meetings").select("*").order("meeting_date",{ascending:false}).order("created_at",{ascending:false}),
     sb.from("announcements").select("*").order("pinned",{ascending:false}).order("created_at",{ascending:false}),
-    sb.from("schedules").select("*").order("event_date",{ascending:true}).order("event_time",{ascending:true})
+    sb.from("schedules").select("*").order("event_date",{ascending:true}).order("event_time",{ascending:true}),
+    sb.from("posts").select("*").order("created_at",{ascending:false})
    ]);
-   if(m.error)throw m.error;if(n.error)throw n.error;if(s.error)throw s.error;
-   state.meetings=m.data||[];state.notices=n.data||[];state.schedules=s.data||[];
+   if(m.error)throw m.error;if(n.error)throw n.error;if(s.error)throw s.error;if(p.error)console.warn("게시판 테이블을 불러오지 못했습니다. schema.sql의 posts 마이그레이션을 확인하세요.",p.error);
+   state.meetings=m.data||[];state.notices=n.data||[];state.schedules=s.data||[];state.posts=p.error?[]:(p.data||[]);
   }else{
-   seed();state.meetings=localGet(KEYS.meetings);state.notices=localGet(KEYS.notices);state.schedules=localGet(KEYS.schedules)
+   seed();state.meetings=localGet(KEYS.meetings);state.notices=localGet(KEYS.notices);state.schedules=localGet(KEYS.schedules);state.posts=localGet(KEYS.posts)
   }
   renderAll();
  }catch(e){console.error(e);alert("데이터를 불러오지 못했습니다. Supabase 설정을 확인하세요.")}
 }
-function renderAll(){renderHome();renderMeetings();renderNotices();renderSchedules();renderTodos();renderCalendar();}
+function renderAll(){renderHome();renderMeetings();renderNotices();renderSchedules();renderPosts();renderTodos();renderCalendar();}
 
 function setTab(tab){
  state.tab=tab;
@@ -112,8 +114,78 @@ function meetingCard(m){
 function isoLocalDate(d){
  const x=new Date(d);x.setMinutes(x.getMinutes()-x.getTimezoneOffset());return x.toISOString().slice(0,10)
 }
+
+function dateKey(d){return isoLocalDate(d)}
+function addDays(dateStr,days){const d=new Date(dateStr+"T12:00:00");d.setDate(d.getDate()+days);return dateKey(d)}
+function dayOfWeek(dateStr){return new Date(dateStr+"T12:00:00").getDay()}
+const lunarFormatter=new Intl.DateTimeFormat("en-u-ca-chinese",{month:"numeric",day:"numeric"});
+const holidayYearCache=new Map();
+function koreanLunarParts(d){
+ try{
+  const parts=lunarFormatter.formatToParts(d);
+  return {month:parts.find(x=>x.type==="month")?.value||"",day:parts.find(x=>x.type==="day")?.value||""};
+ }catch{return {month:"",day:""}}
+}
+function koreanHolidays(year){
+ if(holidayYearCache.has(year))return holidayYearCache.get(year);
+ const entries=[];
+ const add=(date,name,eligible=false,group="")=>entries.push({date,name,eligible,group});
+ const nationalSub=year>=2021;
+ add(`${year}-01-01`,"신정");
+ add(`${year}-03-01`,"삼일절",nationalSub,"0301");
+ if(year>=2026)add(`${year}-05-01`,"노동절",true,"0501");
+ add(`${year}-05-05`,"어린이날",true,"0505");
+ add(`${year}-06-06`,"현충일");
+ if(year>=2026)add(`${year}-07-17`,"제헌절",true,"0717");
+ add(`${year}-08-15`,"광복절",nationalSub,"0815");
+ add(`${year}-10-03`,"개천절",nationalSub,"1003");
+ add(`${year}-10-09`,"한글날",nationalSub,"1009");
+ add(`${year}-12-25`,"성탄절",year>=2023,"1225");
+ const special={
+  "2024-04-10":"제22대 국회의원선거",
+  "2024-10-01":"국군의 날 임시공휴일",
+  "2025-01-27":"임시공휴일",
+  "2025-06-03":"제21대 대통령선거",
+  "2026-06-03":"제9회 전국동시지방선거"
+ };
+ for(const [date,name] of Object.entries(special))if(date.startsWith(`${year}-`))add(date,name);
+ let seollal="",chuseok="",buddha="";
+ for(let d=new Date(year,0,1,12);d.getFullYear()===year;d.setDate(d.getDate()+1)){
+  const lp=koreanLunarParts(d),ds=dateKey(d);
+  if(lp.month==="1"&&lp.day==="1")seollal=ds;
+  if(lp.month==="8"&&lp.day==="15")chuseok=ds;
+  if(lp.month==="4"&&lp.day==="8")buddha=ds;
+ }
+ if(seollal){add(addDays(seollal,-1),"설날 연휴",false,"seollal");add(seollal,"설날",true,"seollal");add(addDays(seollal,1),"설날 연휴",false,"seollal")}
+ if(buddha)add(buddha,"부처님오신날",year>=2023,"buddha");
+ if(chuseok){add(addDays(chuseok,-1),"추석 연휴",false,"chuseok");add(chuseok,"추석",true,"chuseok");add(addDays(chuseok,1),"추석 연휴",false,"chuseok")}
+ const baseDates=new Map();for(const h of entries){if(!baseDates.has(h.date))baseDates.set(h.date,[]);baseDates.get(h.date).push(h)}
+ const nextFree=(from)=>{let ds=addDays(from,1);while(baseDates.has(ds)||[0,6].includes(dayOfWeek(ds)))ds=addDays(ds,1);return ds};
+ const addSubstitute=(groupItems,label,weekendMode)=>{
+  const dates=groupItems.map(x=>x.date).sort();
+  const overlaps=dates.some(ds=>(baseDates.get(ds)||[]).length>1);
+  const weekend=dates.some(ds=>weekendMode==="sunday"?dayOfWeek(ds)===0:[0,6].includes(dayOfWeek(ds)));
+  if(!overlaps&&!weekend)return;
+  const ds=nextFree(dates[dates.length-1]);
+  const h={date:ds,name:`${label} 대체공휴일`,eligible:false,group:`${label}-sub`};entries.push(h);baseDates.set(ds,[h]);
+ };
+ const seolGroup=entries.filter(x=>x.group==="seollal");if(seolGroup.length)addSubstitute(seolGroup,"설날","sunday");
+ const chuGroup=entries.filter(x=>x.group==="chuseok");if(chuGroup.length)addSubstitute(chuGroup,"추석","sunday");
+ const eligibleByDate=new Map();
+ for(const h of entries.filter(x=>x.eligible&&!['seollal','chuseok'].includes(x.group))){if(!eligibleByDate.has(h.date))eligibleByDate.set(h.date,[]);eligibleByDate.get(h.date).push(h)}
+ for(const [date,items] of eligibleByDate){
+  const overlaps=(baseDates.get(date)||[]).length>1, weekend=[0,6].includes(dayOfWeek(date));
+  if(!overlaps&&!weekend)continue;
+  const ds=nextFree(date), label=items.length>1?"대체공휴일":`${items[0].name} 대체공휴일`;
+  const sub={date:ds,name:label,eligible:false,group:`sub-${date}`};entries.push(sub);baseDates.set(ds,[sub]);
+ }
+ entries.sort((a,b)=>a.date.localeCompare(b.date));holidayYearCache.set(year,entries);return entries;
+}
+function holidayFor(dateStr){return koreanHolidays(Number(dateStr.slice(0,4))).filter(x=>x.date===dateStr)}
+
 function calendarEventsFor(dateStr){
  const events=[];
+ holidayFor(dateStr).forEach(h=>events.push({type:"holiday",id:`holiday-${dateStr}-${h.name}`,title:h.name,time:"",location:""}));
  state.meetings.filter(m=>!m.deleted_at&&m.meeting_date===dateStr).forEach(m=>events.push({type:"meeting",id:m.id,title:m.title,time:m.start_time?.slice(0,5)||"",location:m.location||""}));
  state.schedules.filter(s=>s.event_date===dateStr).forEach(s=>events.push({type:"schedule",id:s.id,title:s.title,time:s.event_time?.slice(0,5)||"",location:s.location||""}));
  return events.sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));
@@ -130,13 +202,14 @@ function renderCalendar(){
  let html="";
  for(let i=0;i<42;i++){
    const d=new Date(gridStart);d.setDate(gridStart.getDate()+i);
-   const ds=isoLocalDate(d),sameMonth=d.getMonth()===m,events=calendarEventsFor(ds);
+   const ds=isoLocalDate(d),sameMonth=d.getMonth()===m,events=calendarEventsFor(ds),holidays=events.filter(x=>x.type==="holiday");
    const shown=events.slice(0,3);
-   html+=`<div class="calendar-day ${sameMonth?"":"other-month"} ${ds===todayStr?"today":""} ${ds===state.selectedDate?"selected":""}" data-cal-date="${ds}">
+   html+=`<div class="calendar-day ${sameMonth?"":"other-month"} ${holidays.length?"holiday":""} ${ds===todayStr?"today":""} ${ds===state.selectedDate?"selected":""}" data-cal-date="${ds}">
      <div class="day-number">${d.getDate()}</div>
+     ${holidays.length?`<div class="holiday-name" title="${esc(holidays.map(x=>x.title).join(", "))}">${esc(holidays[0].title)}</div>`:""}
      <div class="cal-events">
-       ${shown.map(ev=>`<div class="cal-event ${ev.type}" data-cal-type="${ev.type}" data-cal-id="${ev.id}" title="${esc(ev.title)}">${esc(ev.time?ev.time+" "+ev.title:ev.title)}</div>`).join("")}
-       ${events.length>3?`<div class="cal-more">+${events.length-3}</div>`:""}
+       ${shown.filter(ev=>ev.type!=="holiday").map(ev=>`<div class="cal-event ${ev.type}" data-cal-type="${ev.type}" data-cal-id="${ev.id}" title="${esc(ev.title)}">${esc(ev.time?ev.time+" "+ev.title:ev.title)}</div>`).join("")}
+       ${events.filter(ev=>ev.type!=="holiday").length>3?`<div class="cal-more">+${events.filter(ev=>ev.type!=="holiday").length-3}</div>`:""}
      </div>
    </div>`;
  }
@@ -150,11 +223,11 @@ function renderSelectedDay(){
  const events=calendarEventsFor(ds);
  $("#selectedDayList").innerHTML=events.length?events.map(ev=>`
    <article class="stack-card" data-agenda-type="${ev.type}" data-agenda-id="${ev.id}">
-     <div class="compact-icon">${ev.type==="meeting"?"📝":"◷"}</div>
+     <div class="compact-icon">${ev.type==="meeting"?"📝":ev.type==="holiday"?"●":"◷"}</div>
      <div class="stack-card-main">
        <h3>${esc(ev.title)}</h3>
        <p>${esc([ev.time,ev.location].filter(Boolean).join(" · "))}</p>
-       <div class="stack-meta">${ev.type==="meeting"?"회의록":"일정"}</div>
+       <div class="stack-meta">${ev.type==="meeting"?"회의록":ev.type==="holiday"?"공휴일":"일정"}</div>
      </div>
    </article>`).join(""):`<div class="empty" style="padding:28px 16px"><h3>이날 등록된 내용이 없습니다</h3><p>오른쪽 + 버튼으로 일정을 추가할 수 있습니다.</p></div>`;
 }
@@ -173,6 +246,33 @@ function renderSchedules(){
  const rows=state.schedules.slice().sort((a,b)=>(a.event_date+(a.event_time||"")).localeCompare(b.event_date+(b.event_time||"")));
  $("#scheduleList").innerHTML=rows.length?rows.map(s=>{const d=monthDay(s.event_date);return`<article class="stack-card" data-schedule-id="${s.id}"><div class="schedule-date"><span>${d.m} ${d.w}</span><strong>${d.d}</strong></div><div class="stack-card-main"><h3>${esc(s.title)}</h3><p>${esc([s.event_time?.slice(0,5),s.location].filter(Boolean).join(" · "))}</p>${s.note?`<div class="stack-meta">${esc(s.note)}</div>`:""}</div></article>`}).join(""):`<div class="empty"><h3>등록된 일정이 없습니다</h3></div>`
 }
+
+function filteredPosts(){
+ const q=state.postQ.trim().toLowerCase();
+ return state.posts.filter(p=>!q||[p.title,p.body,p.author].join(" ").toLowerCase().includes(q));
+}
+function renderPosts(){
+ const rows=filteredPosts();
+ $("#postCountMeta").textContent=`${rows.length}건`;
+ $("#postList").innerHTML=rows.length?rows.map(p=>`<article class="stack-card board-card" data-post-id="${p.id}"><div class="compact-icon">▤</div><div class="stack-card-main"><h3>${esc(p.title)}</h3><p class="board-preview">${esc(p.body||"")}</p><div class="stack-meta">${esc(p.author||"익명")} · ${fmtDT(p.updated_at||p.created_at)}</div></div></article>`).join(""):`<div class="empty"><div class="empty-icon">▤</div><h3>게시글이 없습니다</h3><p>첫 게시글을 작성해보세요.</p></div>`;
+}
+function openPost(p=null){
+ $("#postId").value=p?.id||"";$("#postTitleInput").value=p?.title||"";$("#postBodyInput").value=p?.body||"";
+ $("#postDialogTitle").textContent=p?"게시글 수정":"새 게시글";$("#deletePostBtn").classList.toggle("hidden",!p);
+ $("#postEditedText").textContent=p?`마지막 수정 ${fmtDT(p.updated_at||p.created_at)}${p.author?" · "+p.author:""}`:"";$("#postDialog").showModal();
+}
+async function savePost(e){
+ e.preventDefault();if(!$("#postForm").reportValidity())return;const author=await authorPrompt(),id=$("#postId").value,p={title:$("#postTitleInput").value.trim(),body:$("#postBodyInput").value.trim(),author};
+ if(configured){const r=id?await sb.from("posts").update(p).eq("id",id):await sb.from("posts").insert(p);if(r.error)return alert(r.error.message)}
+ else{const rows=localGet(KEYS.posts);if(id){const i=rows.findIndex(x=>x.id===id);if(i>=0)rows[i]={...rows[i],...p,updated_at:now()}}else rows.unshift({id:crypto.randomUUID(),...p,created_at:now(),updated_at:now()});localSet(KEYS.posts,rows)}
+ $("#postDialog").close();await loadAll();
+}
+async function deletePost(){
+ const id=$("#postId").value;if(!id||!confirm("게시글을 삭제할까요?"))return;
+ if(configured){const r=await sb.from("posts").delete().eq("id",id);if(r.error)return alert(r.error.message)}else localSet(KEYS.posts,localGet(KEYS.posts).filter(x=>x.id!==id));
+ $("#postDialog").close();await loadAll();
+}
+
 function allTodos(includeDone=true){
  const arr=[];state.meetings.filter(m=>!m.deleted_at).forEach(m=>(m.actions||[]).forEach((a,i)=>{if(includeDone||!a.done)arr.push({...a,meetingId:m.id,meetingTitle:m.title,actionIndex:i,project:m.project})}));
  return arr.sort((a,b)=>(a.done-b.done)||String(a.due||"9999").localeCompare(String(b.due||"9999")))
@@ -236,12 +336,13 @@ async function showHistory(){
  $("#historyList").innerHTML=rows.length?rows.map(x=>`<div class="history-item"><div><strong>${esc(x.editor||"익명")}</strong><small>${fmtDT(x.created_at)}</small></div></div>`).join(""):`<p class="muted">이전 버전이 없습니다.</p>`
 }
 
-$("#meetingForm").addEventListener("submit",saveMeeting);$("#noticeForm").addEventListener("submit",saveNotice);$("#scheduleForm").addEventListener("submit",saveSchedule);
+$("#meetingForm").addEventListener("submit",saveMeeting);$("#noticeForm").addEventListener("submit",saveNotice);$("#scheduleForm").addEventListener("submit",saveSchedule);$("#postForm").addEventListener("submit",savePost);
 $("#addActionBtn").onclick=()=>addAction();$("#deleteMeetingBtn").onclick=softDeleteMeeting;$("#restoreMeetingBtn").onclick=restoreMeeting;$("#historyBtn").onclick=showHistory;
-$("#deleteNoticeBtn").onclick=deleteNotice;$("#deleteScheduleBtn").onclick=deleteSchedule;$("#refreshBtn").onclick=loadAll;
+$("#deleteNoticeBtn").onclick=deleteNotice;$("#deleteScheduleBtn").onclick=deleteSchedule;$("#deletePostBtn").onclick=deletePost;$("#refreshBtn").onclick=loadAll;
 ["newMeetingTopBtn","emptyNewMeetingBtn","newMeetingHomeBtn","fab"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openMeeting()));
 ["addNoticeBtn","newNoticeTopBtn"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openNotice()));
 ["addScheduleBtn","addScheduleHero","newScheduleTopBtn"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openSchedule()));
+["newPostTopBtn"].forEach(id=>$("#"+id)?.addEventListener("click",()=>openPost()));
 $$("[data-nav]").forEach(b=>b.onclick=()=>setTab(b.dataset.nav));
 $("#desktopQuickMeeting")?.addEventListener("click",()=>openMeeting());
 $("#desktopQuickSchedule")?.addEventListener("click",()=>openSchedule());$$("[data-tab]").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
@@ -255,7 +356,8 @@ $("#calendarGrid").onclick=e=>{
  if(ev){
    e.stopPropagation();
    if(ev.dataset.calType==="meeting") return openMeeting(state.meetings.find(x=>x.id===ev.dataset.calId));
-   return openSchedule(state.schedules.find(x=>x.id===ev.dataset.calId));
+   if(ev.dataset.calType==="schedule") return openSchedule(state.schedules.find(x=>x.id===ev.dataset.calId));
+   return;
  }
  const day=e.target.closest("[data-cal-date]");
  if(day){state.selectedDate=day.dataset.calDate;const d=new Date(state.selectedDate+"T00:00:00");state.calendarMonth=new Date(d.getFullYear(),d.getMonth(),1);renderCalendar()}
@@ -263,7 +365,7 @@ $("#calendarGrid").onclick=e=>{
 $("#selectedDayList").onclick=e=>{
  const row=e.target.closest("[data-agenda-type]");if(!row)return;
  if(row.dataset.agendaType==="meeting") openMeeting(state.meetings.find(x=>x.id===row.dataset.agendaId));
- else openSchedule(state.schedules.find(x=>x.id===row.dataset.agendaId));
+ else if(row.dataset.agendaType==="schedule") openSchedule(state.schedules.find(x=>x.id===row.dataset.agendaId));
 };
 
 $("#meetingSearch").oninput=e=>{state.q=e.target.value;renderMeetings()};$("#trashToggleBtn").onclick=()=>{state.trash=!state.trash;state.project="전체";renderMeetings()};
@@ -272,6 +374,7 @@ $("#meetingList").onclick=e=>{const q=e.target.closest("[data-quick-edit]");if(q
 $("#recentMeetingList").onclick=e=>{const c=e.target.closest("[data-meeting-id]");if(c){const m=state.meetings.find(x=>x.id===c.dataset.meetingId);openMeeting(m)}};
 $("#noticeHomeList").onclick=e=>{const c=e.target.closest("[data-notice-id]");if(c)openNotice(state.notices.find(x=>x.id===c.dataset.noticeId))};$("#noticeList").onclick=$("#noticeHomeList").onclick;
 $("#scheduleHomeList").onclick=e=>{const c=e.target.closest("[data-schedule-id]");if(c)openSchedule(state.schedules.find(x=>x.id===c.dataset.scheduleId))};$("#scheduleList").onclick=$("#scheduleHomeList").onclick;
+$("#postSearch").oninput=e=>{state.postQ=e.target.value;renderPosts()};$("#postList").onclick=e=>{const c=e.target.closest("[data-post-id]");if(c)openPost(state.posts.find(x=>x.id===c.dataset.postId))};
 $("#todoHomeList").onclick=e=>{const c=e.target.closest("[data-todo-meeting]");if(c){const m=state.meetings.find(x=>x.id===c.dataset.todoMeeting);openMeeting(m)}};
 $("#todoList").onclick=e=>{const r=e.target.closest("[data-todo-meeting]");if(!r)return;if(e.target.classList.contains("todo-check"))toggleTodo(r.dataset.todoMeeting,Number(r.dataset.actionIndex),e.target.checked);else openMeeting(state.meetings.find(x=>x.id===r.dataset.todoMeeting))};
 $$("[data-todo-filter]").forEach(b=>b.onclick=()=>{$$("[data-todo-filter]").forEach(x=>x.classList.remove("active"));b.classList.add("active");state.todoFilter=b.dataset.todoFilter;renderTodos()});

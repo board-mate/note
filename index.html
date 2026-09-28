@@ -26,6 +26,8 @@
       <button class="desktop-tab" data-nav="meetings">회의록</button>
       <button class="desktop-tab" data-nav="todos">할 일</button>
       <button class="desktop-tab" data-nav="notices">공지</button>
+      <button class="desktop-tab" data-nav="board">게시판</button>
+      <a class="desktop-tab desktop-link" href="https://board-mate.github.io/arena/" target="_blank" rel="noopener noreferrer">Arcade ↗</a>
       <div class="desktop-nav-spacer"></div>
       <button class="desktop-action" id="desktopQuickMeeting">＋ 새 회의록</button>
       <button class="desktop-action secondary" id="desktopQuickSchedule">＋ 일정</button>
@@ -147,6 +149,7 @@
         <div class="calendar-legend">
           <span><i class="legend-dot meeting-dot"></i> 회의록</span>
           <span><i class="legend-dot schedule-dot"></i> 일정</span>
+          <span><i class="legend-dot holiday-dot"></i> 공휴일</span>
         </div>
 
         <div class="calendar-weekdays" aria-hidden="true">
@@ -190,6 +193,24 @@
       <section id="scheduleList" class="stack-list"></section>
     </section>
 
+
+    <section id="boardView" class="view hidden">
+      <section class="toolbar">
+        <label class="search-wrap">
+          <span>⌕</span>
+          <input id="postSearch" type="search" placeholder="게시글 제목, 내용, 작성자 검색">
+        </label>
+        <button class="primary-btn" id="newPostTopBtn">＋ 새 글</button>
+      </section>
+      <section class="section-head">
+        <div>
+          <h2>일반 게시판</h2>
+          <p id="postCountMeta" class="muted"></p>
+        </div>
+      </section>
+      <section id="postList" class="stack-list"></section>
+    </section>
+
     <section id="todosView" class="view hidden">
       <section class="section-head top-tight">
         <div>
@@ -213,6 +234,8 @@
     <button class="nav-item" data-nav="meetings"><span>☷</span><small>회의록</small></button>
     <button class="nav-item" data-nav="todos"><span>✓</span><small>할 일</small></button>
     <button class="nav-item" data-nav="notices"><span>●</span><small>공지</small></button>
+    <button class="nav-item" data-nav="board"><span>▤</span><small>게시판</small></button>
+    <a class="nav-item nav-link" href="https://board-mate.github.io/arena/" target="_blank" rel="noopener noreferrer"><span>◈</span><small>Arcade</small></a>
   </nav>
 
   <dialog id="meetingDialog" class="modal">
@@ -349,6 +372,27 @@
         <button type="button" id="deleteScheduleBtn" class="danger-text hidden">삭제</button>
         <div class="right-actions">
           <button type="button" class="secondary-btn" data-close="scheduleDialog">닫기</button>
+          <button type="submit" class="primary-btn">저장</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+
+  <dialog id="postDialog" class="modal small-modal">
+    <form id="postForm" method="dialog">
+      <div class="modal-head">
+        <div><div class="eyebrow">BOARD</div><h2 id="postDialogTitle">새 게시글</h2></div>
+        <button type="button" class="icon-btn close-btn" data-close="postDialog">✕</button>
+      </div>
+      <input id="postId" type="hidden">
+      <label class="field"><span>제목 *</span><input id="postTitleInput" required maxlength="160" placeholder="게시글 제목"></label>
+      <label class="field"><span>내용 *</span><textarea id="postBodyInput" rows="11" required placeholder="자유롭게 내용을 작성하세요."></textarea></label>
+      <div id="postEditedText" class="editor-meta"></div>
+      <div class="modal-actions">
+        <button type="button" id="deletePostBtn" class="danger-text hidden">삭제</button>
+        <div class="right-actions">
+          <button type="button" class="secondary-btn" data-close="postDialog">닫기</button>
           <button type="submit" class="primary-btn">저장</button>
         </div>
       </div>

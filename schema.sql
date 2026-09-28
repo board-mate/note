@@ -50,6 +50,16 @@ create table if not exists public.schedules (
   updated_at timestamptz not null default now()
 );
 
+
+create table if not exists public.posts (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  body text not null default '',
+  author text default '익명',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create or replace function public.touch_updated_at()
 returns trigger language plpgsql as $$
 begin new.updated_at := now(); return new; end;
@@ -74,10 +84,14 @@ create trigger trg_announcement_touch before update on public.announcements for 
 drop trigger if exists trg_schedule_touch on public.schedules;
 create trigger trg_schedule_touch before update on public.schedules for each row execute function public.touch_updated_at();
 
+drop trigger if exists trg_post_touch on public.posts;
+create trigger trg_post_touch before update on public.posts for each row execute function public.touch_updated_at();
+
 alter table public.meetings enable row level security;
 alter table public.meeting_revisions enable row level security;
 alter table public.announcements enable row level security;
 alter table public.schedules enable row level security;
+alter table public.posts enable row level security;
 
 drop policy if exists "public read meetings" on public.meetings;
 drop policy if exists "public insert meetings" on public.meetings;
@@ -85,6 +99,7 @@ drop policy if exists "public update meetings" on public.meetings;
 drop policy if exists "public read revisions" on public.meeting_revisions;
 drop policy if exists "public all announcements" on public.announcements;
 drop policy if exists "public all schedules" on public.schedules;
+drop policy if exists "public all posts" on public.posts;
 
 create policy "public read meetings" on public.meetings for select to anon using(true);
 create policy "public insert meetings" on public.meetings for insert to anon with check(true);
@@ -93,12 +108,14 @@ create policy "public read revisions" on public.meeting_revisions for select to 
 
 create policy "public all announcements" on public.announcements for all to anon using(true) with check(true);
 create policy "public all schedules" on public.schedules for all to anon using(true) with check(true);
+create policy "public all posts" on public.posts for all to anon using(true) with check(true);
 
 grant usage on schema public to anon;
 grant select,insert,update on public.meetings to anon;
 grant select on public.meeting_revisions to anon;
 grant select,insert,update,delete on public.announcements to anon;
 grant select,insert,update,delete on public.schedules to anon;
+grant select,insert,update,delete on public.posts to anon;
 grant usage,select on sequence public.meeting_revisions_id_seq to anon;
 
 -- 요청대로 로그인 없이 공개 읽기/쓰기를 허용하는 구조입니다.
