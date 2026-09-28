@@ -45,10 +45,22 @@ create table if not exists public.schedules (
   event_time time,
   location text default '',
   note text default '',
+  is_public boolean not null default false,
   author text default '익명',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+
+-- v10: 일정은 기본 비공개. Arena에는 공개 체크된 일정만 노출합니다.
+alter table public.schedules add column if not exists is_public boolean not null default false;
+create index if not exists idx_schedules_public_date on public.schedules(is_public, event_date, event_time);
+
+create or replace view public.arena_public_schedules as
+select id, title, event_date, event_time, location, note, author, created_at, updated_at
+from public.schedules
+where is_public = true;
+
 
 
 create table if not exists public.posts (
@@ -202,6 +214,7 @@ grant select,insert,update on public.meetings to anon;
 grant select on public.meeting_revisions to anon;
 grant select,insert,update,delete on public.announcements to anon;
 grant select,insert,update,delete on public.schedules to anon;
+grant select on public.arena_public_schedules to anon;
 grant select,insert,update,delete on public.posts to anon;
 grant select,insert,update,delete on public.post_comments to anon;
 grant select,insert,update,delete on public.post_polls to anon;

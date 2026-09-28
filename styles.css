@@ -239,3 +239,15 @@ button,input,textarea{font:inherit}button{cursor:pointer}
 .poll-option input{vertical-align:middle;margin-right:4px}.poll-bar{height:6px;margin-top:9px;border-radius:999px;background:#eaecf0;overflow:hidden}.poll-bar span{display:block;height:100%;border-radius:inherit;background:#667085;transition:width .2s ease}
 .poll-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:5px;flex-wrap:wrap}
 @media(max-width:640px){.post-poll-detail{padding:14px}.poll-head{flex-direction:column}.poll-option-row{align-items:flex-start}.poll-option-row strong{margin-left:auto}.poll-editor-card{padding:12px}}
+
+/* ===== v10 schedule visibility ===== */
+.schedule-public-toggle{display:flex;align-items:flex-start;gap:11px;margin:4px 0 16px;padding:13px 14px;border:1px solid var(--line);border-radius:14px;background:#fafbfc;cursor:pointer}
+.schedule-public-toggle input{width:19px;height:19px;margin-top:2px;accent-color:var(--brand);flex:0 0 auto}
+.schedule-public-toggle span{display:flex;flex-direction:column;gap:3px}
+.schedule-public-toggle strong{font-size:14px;color:#344054}
+.schedule-public-toggle small{font-size:12px;line-height:1.45;color:var(--muted)}
+.schedule-title-row{display:flex;align-items:flex-start;gap:8px;justify-content:space-between}
+.schedule-title-row h3{min-width:0;overflow-wrap:anywhere}
+.visibility-badge{flex:0 0 auto;display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:800;white-space:nowrap}
+.visibility-badge.public{background:#ecfdf3;color:#027a48;border:1px solid #abefc6}
+.visibility-badge.private{background:#f2f4f7;color:#667085;border:1px solid #e4e7ec}
