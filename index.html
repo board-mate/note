@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>모임 운영</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">GROUP SPACE</div>
+      <h1 id="appTitle">모임 운영</h1>
+    </div>
+    <button class="icon-btn" id="refreshBtn" aria-label="새로고침">↻</button>
+  </header>
+
+  <nav class="desktop-nav desktop-only" aria-label="주요 메뉴">
+    <div class="desktop-nav-inner">
+      <button class="desktop-tab active" data-nav="home">홈</button>
+      <button class="desktop-tab" data-nav="calendar">달력</button>
+      <button class="desktop-tab" data-nav="meetings">회의록</button>
+      <button class="desktop-tab" data-nav="todos">할 일</button>
+      <button class="desktop-tab" data-nav="notices">공지</button>
+      <div class="desktop-nav-spacer"></div>
+      <button class="desktop-action" id="desktopQuickMeeting">＋ 새 회의록</button>
+      <button class="desktop-action secondary" id="desktopQuickSchedule">＋ 일정</button>
+    </div>
+  </nav>
+
+  <main class="shell">
+    <section id="modeBanner" class="banner hidden"></section>
+
+    <section id="homeView" class="view">
+      <section class="home-intro desktop-only">
+        <div>
+          <div class="eyebrow">OVERVIEW</div>
+          <h2>모임 현황</h2>
+        </div>
+        <p>공지, 일정, 회의록, 할 일을 한 화면에서 확인합니다.</p>
+      </section>
+      <section class="hero-card">
+        <div>
+          <div class="eyebrow">NEXT MEETING</div>
+          <h2 id="nextMeetingTitle">다음 모임을 등록해보세요</h2>
+          <p id="nextMeetingMeta" class="hero-meta">일정이 등록되면 여기에 가장 가까운 모임이 표시됩니다.</p>
+        </div>
+        <button class="hero-btn" id="addScheduleHero">일정 추가</button>
+      </section>
+
+      <section class="dashboard-grid">
+        <div class="dash-panel">
+          <div class="panel-head">
+            <div>
+              <span class="panel-kicker">NOTICE</span>
+              <h3>공지사항</h3>
+            </div>
+            <button class="mini-btn" id="addNoticeBtn">＋</button>
+          </div>
+          <div id="noticeHomeList" class="compact-list"></div>
+          <button class="panel-link" data-tab="notices">공지 전체 보기 →</button>
+        </div>
+
+        <div class="dash-panel">
+          <div class="panel-head">
+            <div>
+              <span class="panel-kicker">MEETINGS</span>
+              <h3>최근 회의록</h3>
+            </div>
+            <button class="mini-btn" id="newMeetingHomeBtn">＋</button>
+          </div>
+          <div id="recentMeetingList" class="compact-list"></div>
+          <button class="panel-link" data-tab="meetings">회의록 전체 보기 →</button>
+        </div>
+
+        <div class="dash-panel">
+          <div class="panel-head">
+            <div>
+              <span class="panel-kicker">TO-DO</span>
+              <h3>남은 할 일</h3>
+            </div>
+            <span id="todoCountBadge" class="count-badge">0</span>
+          </div>
+          <div id="todoHomeList" class="compact-list"></div>
+          <button class="panel-link" data-tab="todos">할 일 전체 보기 →</button>
+        </div>
+
+        <div class="dash-panel">
+          <div class="panel-head">
+            <div>
+              <span class="panel-kicker">SCHEDULE</span>
+              <h3>예정 일정</h3>
+            </div>
+            <button class="mini-btn" id="addScheduleBtn">＋</button>
+          </div>
+          <div id="scheduleHomeList" class="compact-list"></div>
+          <button class="panel-link" data-tab="calendar">달력에서 보기 →</button>
+        </div>
+      </section>
+    </section>
+
+    <section id="meetingsView" class="view hidden">
+      <section class="toolbar">
+        <label class="search-wrap">
+          <span>⌕</span>
+          <input id="meetingSearch" type="search" placeholder="회의 제목, 참석자, 결정사항 검색">
+        </label>
+        <button class="primary-btn desktop-only" id="newMeetingTopBtn">＋ 새 회의록</button>
+      </section>
+      <div id="projectChips" class="chips"></div>
+
+      <section class="section-head">
+        <div>
+          <h2>회의록 목록</h2>
+          <p id="meetingCountMeta" class="muted"></p>
+        </div>
+        <button id="trashToggleBtn" class="text-btn">휴지통 보기</button>
+      </section>
+      <section id="meetingList" class="meeting-grid"></section>
+      <section id="meetingEmpty" class="empty hidden">
+        <div class="empty-icon">📝</div>
+        <h3>회의록이 없습니다</h3>
+        <p>첫 회의록을 만들어보세요.</p>
+        <button class="primary-btn" id="emptyNewMeetingBtn">＋ 새 회의록</button>
+      </section>
+    </section>
+
+
+    <section id="calendarView" class="view hidden">
+      <section class="calendar-shell">
+        <div class="calendar-toolbar">
+          <div>
+            <div class="eyebrow">CALENDAR</div>
+            <h2 id="calendarMonthLabel">2026년 9월</h2>
+          </div>
+          <div class="calendar-controls">
+            <button class="secondary-btn" id="calendarPrevBtn" aria-label="이전 달">‹</button>
+            <button class="secondary-btn" id="calendarTodayBtn">오늘</button>
+            <button class="secondary-btn" id="calendarNextBtn" aria-label="다음 달">›</button>
+          </div>
+        </div>
+
+        <div class="calendar-legend">
+          <span><i class="legend-dot meeting-dot"></i> 회의록</span>
+          <span><i class="legend-dot schedule-dot"></i> 일정</span>
+        </div>
+
+        <div class="calendar-weekdays" aria-hidden="true">
+          <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+        </div>
+
+        <div id="calendarGrid" class="calendar-grid"></div>
+
+        <section class="day-agenda">
+          <div class="panel-head">
+            <div>
+              <span class="panel-kicker">SELECTED DAY</span>
+              <h3 id="selectedDateLabel">오늘</h3>
+            </div>
+            <button class="mini-btn" id="calendarAddScheduleBtn" title="이 날짜에 일정 추가">＋</button>
+          </div>
+          <div id="selectedDayList" class="stack-list"></div>
+        </section>
+      </section>
+    </section>
+
+    <section id="noticesView" class="view hidden">
+      <section class="section-head top-tight">
+        <div>
+          <h2>공지사항</h2>
+          <p class="muted">중요 공지와 안내를 한 곳에 모아둡니다.</p>
+        </div>
+        <button class="primary-btn" id="newNoticeTopBtn">＋ 새 공지</button>
+      </section>
+      <section id="noticeList" class="stack-list"></section>
+    </section>
+
+    <section id="schedulesView" class="view hidden">
+      <section class="section-head top-tight">
+        <div>
+          <h2>모임 일정</h2>
+          <p class="muted">다가오는 일정부터 확인합니다.</p>
+        </div>
+        <button class="primary-btn" id="newScheduleTopBtn">＋ 일정 추가</button>
+      </section>
+      <section id="scheduleList" class="stack-list"></section>
+    </section>
+
+    <section id="todosView" class="view hidden">
+      <section class="section-head top-tight">
+        <div>
+          <h2>할 일</h2>
+          <p class="muted">모든 회의록의 Action Item을 모아서 봅니다.</p>
+        </div>
+        <div class="segmented">
+          <button class="seg active" data-todo-filter="open">미완료</button>
+          <button class="seg" data-todo-filter="all">전체</button>
+        </div>
+      </section>
+      <section id="todoList" class="stack-list"></section>
+    </section>
+  </main>
+
+  <button class="fab" id="fab" aria-label="새 회의록">＋</button>
+
+  <nav class="bottom-nav mobile-only">
+    <button class="nav-item active" data-nav="home"><span>⌂</span><small>홈</small></button>
+    <button class="nav-item" data-nav="calendar"><span>▦</span><small>달력</small></button>
+    <button class="nav-item" data-nav="meetings"><span>☷</span><small>회의록</small></button>
+    <button class="nav-item" data-nav="todos"><span>✓</span><small>할 일</small></button>
+    <button class="nav-item" data-nav="notices"><span>●</span><small>공지</small></button>
+  </nav>
+
+  <dialog id="meetingDialog" class="modal">
+    <form id="meetingForm" method="dialog">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow">MEETING NOTE</div>
+          <h2 id="meetingDialogTitle">새 회의록</h2>
+        </div>
+        <button type="button" class="icon-btn close-btn" data-close="meetingDialog">✕</button>
+      </div>
+
+      <input id="meetingId" type="hidden">
+      <input id="meetingUpdatedAt" type="hidden">
+
+      <div class="title-edit-row">
+        <label class="field grow">
+          <span>회의 제목 *</span>
+          <input id="titleInput" required maxlength="120" placeholder="예: 9월 정기모임">
+        </label>
+        <span class="edit-hint">✎ 제목도 언제든 수정 가능</span>
+      </div>
+
+      <div class="form-grid two">
+        <label class="field">
+          <span>분류 / 프로젝트 *</span>
+          <input id="projectInput" required maxlength="60" placeholder="예: 운영회의" list="projectList">
+          <datalist id="projectList"></datalist>
+        </label>
+        <label class="field">
+          <span>장소</span>
+          <input id="locationInput" maxlength="80" placeholder="예: 카페 / 온라인">
+        </label>
+      </div>
+
+      <div class="form-grid two">
+        <label class="field">
+          <span>날짜 *</span>
+          <input id="dateInput" type="date" required>
+        </label>
+        <label class="field">
+          <span>시간</span>
+          <input id="timeInput" type="time">
+        </label>
+      </div>
+
+      <label class="field">
+        <span>참석자</span>
+        <input id="attendeesInput" maxlength="300" placeholder="김OO, 이OO, 박OO">
+      </label>
+
+      <label class="field">
+        <span>한줄 요약</span>
+        <textarea id="summaryInput" rows="2" maxlength="500"></textarea>
+      </label>
+
+      <label class="field">
+        <span>논의 내용</span>
+        <textarea id="discussionInput" rows="7" placeholder="안건별 논의 내용을 자유롭게 작성"></textarea>
+      </label>
+
+      <label class="field">
+        <span>결정사항</span>
+        <textarea id="decisionsInput" rows="5"></textarea>
+      </label>
+
+      <section class="actions-editor">
+        <div class="subhead">
+          <div>
+            <h3>Action Item</h3>
+            <p class="muted">할 일 · 담당 · 기한</p>
+          </div>
+          <button id="addActionBtn" type="button" class="secondary-btn">＋ 추가</button>
+        </div>
+        <div id="actionsList" class="actions-list"></div>
+      </section>
+
+      <label class="field">
+        <span>참고 링크</span>
+        <textarea id="linksInput" rows="3" placeholder="관련 URL을 한 줄에 하나씩"></textarea>
+      </label>
+
+      <div id="lastEditedText" class="editor-meta"></div>
+
+      <div class="modal-actions">
+        <div class="left-actions">
+          <button id="historyBtn" type="button" class="secondary-btn hidden">수정 이력</button>
+          <button id="deleteMeetingBtn" type="button" class="danger-text hidden">휴지통</button>
+          <button id="restoreMeetingBtn" type="button" class="secondary-btn hidden">복원</button>
+        </div>
+        <div class="right-actions">
+          <button type="button" class="secondary-btn" data-close="meetingDialog">닫기</button>
+          <button id="saveMeetingBtn" type="submit" class="primary-btn">저장</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="noticeDialog" class="modal small-modal">
+    <form id="noticeForm" method="dialog">
+      <div class="modal-head">
+        <div><div class="eyebrow">NOTICE</div><h2>공지 작성</h2></div>
+        <button type="button" class="icon-btn close-btn" data-close="noticeDialog">✕</button>
+      </div>
+      <input id="noticeId" type="hidden">
+      <label class="field"><span>제목 *</span><input id="noticeTitleInput" required maxlength="120"></label>
+      <label class="field"><span>내용</span><textarea id="noticeBodyInput" rows="7"></textarea></label>
+      <label class="toggle-row"><input id="noticePinnedInput" type="checkbox"><span>상단 고정</span></label>
+      <div class="modal-actions">
+        <button type="button" id="deleteNoticeBtn" class="danger-text hidden">삭제</button>
+        <div class="right-actions">
+          <button type="button" class="secondary-btn" data-close="noticeDialog">닫기</button>
+          <button type="submit" class="primary-btn">저장</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="scheduleDialog" class="modal small-modal">
+    <form id="scheduleForm" method="dialog">
+      <div class="modal-head">
+        <div><div class="eyebrow">SCHEDULE</div><h2>일정 등록</h2></div>
+        <button type="button" class="icon-btn close-btn" data-close="scheduleDialog">✕</button>
+      </div>
+      <input id="scheduleId" type="hidden">
+      <label class="field"><span>일정명 *</span><input id="scheduleTitleInput" required maxlength="120"></label>
+      <div class="form-grid two">
+        <label class="field"><span>날짜 *</span><input id="scheduleDateInput" type="date" required></label>
+        <label class="field"><span>시간</span><input id="scheduleTimeInput" type="time"></label>
+      </div>
+      <label class="field"><span>장소</span><input id="scheduleLocationInput" maxlength="100"></label>
+      <label class="field"><span>메모</span><textarea id="scheduleNoteInput" rows="4"></textarea></label>
+      <div class="modal-actions">
+        <button type="button" id="deleteScheduleBtn" class="danger-text hidden">삭제</button>
+        <div class="right-actions">
+          <button type="button" class="secondary-btn" data-close="scheduleDialog">닫기</button>
+          <button type="submit" class="primary-btn">저장</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="historyDialog" class="modal small-modal">
+    <div class="modal-head">
+      <div><div class="eyebrow">HISTORY</div><h2>수정 이력</h2></div>
+      <button type="button" class="icon-btn close-btn" data-close="historyDialog">✕</button>
+    </div>
+    <div id="historyList" class="history-list"></div>
+  </dialog>
+
+  <dialog id="nameDialog" class="modal small-modal">
+    <form id="nameForm" method="dialog">
+      <div class="modal-head">
+        <div><div class="eyebrow">AUTHOR</div><h2>작성자 이름</h2></div>
+        <button type="button" class="icon-btn close-btn" data-close="nameDialog">✕</button>
+      </div>
+      <p class="muted">로그인 대신 이 기기에 이름만 기억합니다.</p>
+      <label class="field"><span>이름</span><input id="authorInput" required maxlength="40" placeholder="예: 김OO"></label>
+      <div class="modal-actions">
+        <div></div>
+        <div class="right-actions">
+          <button type="button" class="secondary-btn" data-close="nameDialog">취소</button>
+          <button type="submit" class="primary-btn">저장</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <template id="actionRowTemplate">
+    <div class="action-row">
+      <label class="check-wrap"><input class="action-done" type="checkbox"></label>
+      <input class="action-task" placeholder="할 일" maxlength="160">
+      <input class="action-owner" placeholder="담당" maxlength="40">
+      <input class="action-due" type="date">
+      <button class="action-remove" type="button">✕</button>
+    </div>
+  </template>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
