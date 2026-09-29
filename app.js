@@ -8,6 +8,7 @@ const state={tab:"home",meetings:[],notices:[],schedules:[],posts:[],comments:[]
   calendarMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),
   selectedDate:null};
 const KEYS={meetings:"group-meetings-v2",notices:"group-notices-v2",schedules:"group-schedules-v2",posts:"group-posts-v1",comments:"group-comments-v1",polls:"group-post-polls-v1",pollOptions:"group-post-poll-options-v1",pollVotes:"group-post-poll-votes-v1",voter:"group-voter-id-v1",todos:"group-todos-v1",todoComments:"group-todo-comments-v1",author:"group-author-v2"};
+let loadPromise=null, refreshTimer=null;
 
 function now(){return new Date().toISOString()}
 function today(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}
@@ -47,7 +48,12 @@ function authorPrompt(){
  return new Promise(resolve=>{const d=$("#nameDialog"),f=$("#nameForm");$("#authorInput").value="";f._resolve=resolve;d.showModal()})
 }
 
-async function loadAll(){
+async function loadAll(force=false){
+ if(loadPromise){await loadPromise;if(!force)return}
+ loadPromise=fetchAll();
+ try{await loadPromise}finally{loadPromise=null}
+}
+async function fetchAll(){
  try{
   if(configured){
    const [m,n,s,p,c,pl,po,pv,t,tc]=await Promise.all([
@@ -69,6 +75,11 @@ async function loadAll(){
   }
   renderAll();
  }catch(e){console.error(e);alert("데이터를 불러오지 못했습니다. Supabase 설정을 확인하세요.")}
+}
+function scheduleRefresh(){
+ if(document.hidden)return;
+ clearTimeout(refreshTimer);
+ refreshTimer=setTimeout(()=>loadAll(),250);
 }
 function renderAll(){renderHome();renderMeetings();renderNotices();renderSchedules();renderPosts();renderTodos();renderCalendar();}
 
@@ -312,7 +323,7 @@ async function savePost(e){
  let savedId=id;
  if(configured){const r=id?await sb.from("posts").update(p).eq("id",id).select().single():await sb.from("posts").insert(p).select().single();if(r.error)return alert(r.error.message);savedId=r.data?.id||id}
  else{const rows=localGet(KEYS.posts);if(id){const i=rows.findIndex(x=>x.id===id);if(i>=0)rows[i]={...rows[i],...p,updated_at:now()}}else{savedId=crypto.randomUUID();rows.unshift({id:savedId,...p,created_at:now(),updated_at:now()})}localSet(KEYS.posts,rows)}
- try{await syncPostPoll(savedId)}catch(err){return alert(err.message||String(err))}$("#postDialog").close();await loadAll();const saved=state.posts.find(x=>x.id===savedId);if(saved)showPost(saved);
+ try{await syncPostPoll(savedId)}catch(err){return alert(err.message||String(err))}$("#postDialog").close();await loadAll(true);const saved=state.posts.find(x=>x.id===savedId);if(saved)showPost(saved);
 }
 async function deletePost(){
  const id=$("#postId").value;if(!id||!confirm("게시글을 삭제할까요? 댓글과 투표도 함께 삭제됩니다."))return;
@@ -509,5 +520,14 @@ $("#nameDialog").addEventListener("close",()=>{if($("#nameForm")._resolve){$("#n
 document.title=cfg.appName||"모임 운영";$("#appTitle").textContent=cfg.appName||"모임 운영";setTab("home");
 if(!configured)banner("미리보기 모드입니다. 현재 브라우저에만 저장됩니다. 여러 사람이 함께 쓰려면 config.js에 Supabase 값을 넣으세요.");
 if("serviceWorker"in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});
-loadAll();if(configured)setInterval(loadAll,20000);
+loadAll();
+if(configured){
+ // Realtime requires the tables to be included in the Supabase publication.
+ sb.channel("group-space-changes")
+  .on("postgres_changes",{event:"*",schema:"public"},scheduleRefresh)
+  .subscribe();
+ setInterval(()=>{if(!document.hidden)loadAll()},20000);
+ document.addEventListener("visibilitychange",()=>{if(!document.hidden)scheduleRefresh()});
+ window.addEventListener("focus",scheduleRefresh);
+}
 })();
